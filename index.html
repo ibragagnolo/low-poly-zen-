@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <title>Mi Jardín Japonés XR</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+    <link type="text/css" rel="stylesheet" href="https://cdn.jsdelivr.net/gh/google/xrblocks@main/samples/main.css" />
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+          "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/",
+          "xrblocks": "https://cdn.jsdelivr.net/gh/google/xrblocks@main/build/xrblocks.module.js"
+        }
+      }
+    </script>
+</head>
+<body>
+    <script type="module">
+        import * as THREE from 'three';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+        import * as xb from 'xrblocks';
+
+        class EscenaJardin extends xb.Script {
+            init() {
+                // Luz ambiental para que el jardín se vea iluminado
+                this.add(new THREE.HemisphereLight(0xffffff, 0x666666, 3));
+
+                // Cargar tu modelo de Blender con su nombre exacto
+                const loader = new GLTFLoader();
+                loader.load('LOW POLY ZEN.GLB', (gltf) => {
+                    const jadin = gltf.scene;
+                    
+                    // Lo posicionamos un poco hacia el frente (Z = -2) para no aparecer encima de él
+                    jadin.position.set(0, 0, -2); 
+                    
+                    this.add(jadin);
+                }, undefined, (error) => {
+                    console.error('Error cargando el jardín:', error);
+                });
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            xb.add(new EscenaJardin());
+            xb.init(new xb.Options());
+        });
+    </script>
+</body>
+</html>
