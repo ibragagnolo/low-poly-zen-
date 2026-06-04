@@ -1,16 +1,18 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <title>Mi Jardín Japonés XR</title>
+    <title>Jardín Japonés XR</title>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-    <link type="text/css" rel="stylesheet" href="https://cdn.jsdelivr.net/gh/google/xrblocks@main/samples/main.css" />
+    <style>
+        body { margin: 0; background-color: #000; overflow: hidden; }
+    </style>
     <script type="importmap">
       {
         "imports": {
           "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
           "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/",
-          "xrblocks": "https://cdn.jsdelivr.net/gh/google/xrblocks@main/build/xrblocks.module.js"
+          "xrblocks": "https://cdn.jsdelivr.net/gh/google/xrblocks@v0.1.1/build/xrblocks.module.js"
         }
       }
     </script>
@@ -23,54 +25,47 @@
 
         class EscenaJardin extends xb.Script {
             init() {
-                // 1. LUZ DE DÍA: Simula el cielo azul y el reflejo del suelo (Muy brillante)
-                const luzSol = new THREE.HemisphereLight(0xddeeff, 0x4f4f4f, 5);
-                this.add(luzSol);
+                // 1. MEJORES LUCES (Día despejado)
+                const luzCielo = new THREE.HemisphereLight(0xddeeff, 0x444444, 4);
+                this.add(luzCielo);
 
-                // 2. EL SOL: Luz directa blanca para generar volumen y sombras claras
-                const solDirecto = new THREE.DirectionalLight(0xffffff, 4);
-                solDirecto.position.set(10, 20, 10); // Posición alta para simular el mediodía
-                this.add(solDirecto);
+                const sol = new THREE.DirectionalLight(0xffffff, 3);
+                sol.position.set(5, 10, 5);
+                this.add(sol);
 
-                // 3. Piso gris de referencia para no flotar en el vacío azul
-                const sueloGeo = new THREE.PlaneGeometry(40, 40);
-                const sueloMat = new THREE.MeshStandardMaterial({ color: 0xaaaaaa, roughness: 0.9 });
+                // 2. PISO GRIS (Para no flotar)
+                const sueloGeo = new THREE.PlaneGeometry(100, 100);
+                const sueloMat = new THREE.MeshStandardMaterial({ color: 0x666666 });
                 const suelo = new THREE.Mesh(sueloGeo, sueloMat);
                 suelo.rotation.x = -Math.PI / 2;
-                suelo.position.y = -1.01;
+                suelo.position.y = -0.05; 
                 this.add(suelo);
 
-                // 4. Carga del modelo
+                // 3. CARGAR EL MODELO
                 const loader = new GLTFLoader();
+                // Asegúrate de que el archivo en GitHub se llame jardin.glb
                 loader.load('jardin.glb', (gltf) => {
-                    const jardin = gltf.scene;
+                    const modelo = gltf.scene;
                     
-                    // Ajuste de escala por las dudas
-                    jardin.scale.set(0.1, 0.1, 0.1);
-                    jardin.position.set(0, -1, -3); 
-                    
-                    jardin.traverse((child) => {
-                        if (child.isMesh) {
-                            child.castShadow = true;
-                            child.receiveShadow = true;
-                            
-                            // Forzamos a que los materiales reaccionen con fuerza a la nueva luz
-                            if (child.material) {
-                                child.material.side = THREE.DoubleSide;
-                                child.material.needsUpdate = true;
-                            }
+                    // Ajuste de escala y posición
+                    modelo.scale.set(1, 1, 1); 
+                    modelo.position.set(0, 0, -5); 
+
+                    modelo.traverse((node) => {
+                        if (node.isMesh) {
+                            node.material.side = THREE.DoubleSide;
                         }
                     });
-                    
-                    this.add(jardin);
-                    console.log("¡El modelo jardin.glb se cargó con éxito con luces de día!");
+
+                    this.add(modelo);
+                    console.log("¡Éxito! El jardín está en la escena.");
                 }, undefined, (error) => {
-                    console.error('Error al cargar el archivo .glb:', error);
+                    console.error("Error al cargar el .glb:", error);
                 });
             }
         }
 
-        document.addEventListener('DOMContentLoaded', function () {
+        document.addEventListener('DOMContentLoaded', () => {
             xb.add(new EscenaJardin());
             xb.init(new xb.Options());
         });
