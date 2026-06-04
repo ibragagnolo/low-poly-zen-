@@ -23,7 +23,7 @@
 
         class EscenaJardin extends xb.Script {
             init() {
-                // 1. Iluminación ambiental potente para que no se vea oscuro
+                // 1. Iluminación potente
                 const luzHemisferica = new THREE.HemisphereLight(0xffffff, 0xbbbbbb, 3);
                 this.add(luzHemisferica);
 
@@ -31,7 +31,7 @@
                 luzDireccional.position.set(5, 10, 7);
                 this.add(luzDireccional);
 
-                // 2. Un piso gris de referencia para saber dónde está el suelo
+                // 2. Piso gris de referencia
                 const sueloGeo = new THREE.PlaneGeometry(20, 20);
                 const sueloMat = new THREE.MeshStandardMaterial({ color: 0x888888, roughness: 0.8 });
                 const suelo = new THREE.Mesh(sueloGeo, sueloMat);
@@ -39,29 +39,27 @@
                 suelo.position.y = -1.01;
                 this.add(suelo);
 
-                // 3. Cargar tu modelo de Blender con el nombre exacto en minúsculas
+                // 3. Carga del modelo con el nombre corregido (sin espacios)
                 const loader = new GLTFLoader();
-                loader.load('low poly zen.glb', (gltf) => {
+                loader.load('jardin.glb', (gltf) => {
                     const jardin = gltf.scene;
                     
-                    // Escalamos a la décima parte por si el modelo quedó enorme en Blender
+                    // Achicamos por si en Blender quedó gigante
                     jardin.scale.set(0.1, 0.1, 0.1);
                     
-                    // Lo centramos y lo bajamos un poco a la altura de los ojos
+                    // Centramos la posición frente a la cámara
                     jardin.position.set(0, -1, -3); 
                     
-                    // Forzamos a que se procesen correctamente todos los elementos internos
                     jardin.traverse((child) => {
                         if (child.isMesh) {
                             child.castShadow = true;
                             child.receiveShadow = true;
-                            // Si los materiales pierden color, esto ayuda a mantenerlos visibles
                             if (child.material) child.material.side = THREE.DoubleSide;
                         }
                     });
                     
                     this.add(jardin);
-                    console.log("¡El jardín se cargó correctamente!");
+                    console.log("¡El modelo jardin.glb se cargó con éxito!");
                 }, undefined, (error) => {
                     console.error('Error al cargar el archivo .glb:', error);
                 });
