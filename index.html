@@ -5,14 +5,14 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
     <style>
-        body { margin: 0; background-color: #000; overflow: hidden; }
+        body { margin: 0; background-color: #aaccff; overflow: hidden; }
     </style>
     <script type="importmap">
       {
         "imports": {
           "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
           "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/",
-          "xrblocks": "https://cdn.jsdelivr.net/gh/google/xrblocks@v0.1.1/build/xrblocks.module.js"
+          "xrblocks": "https://unpkg.com/xrblocks@0.1.1/build/xrblocks.module.js"
         }
       }
     </script>
@@ -25,40 +25,42 @@
 
         class EscenaJardin extends xb.Script {
             init() {
-                // 1. MEJORES LUCES (Día despejado)
-                const luzCielo = new THREE.HemisphereLight(0xddeeff, 0x444444, 4);
+                // 1. LUCES DE DÍA POTENTES
+                const luzCielo = new THREE.HemisphereLight(0xffffff, 0x777777, 4);
                 this.add(luzCielo);
 
-                const sol = new THREE.DirectionalLight(0xffffff, 3);
-                sol.position.set(5, 10, 5);
+                const sol = new THREE.DirectionalLight(0xfffcaa, 3);
+                sol.position.set(10, 20, 10);
                 this.add(sol);
 
-                // 2. PISO GRIS (Para no flotar)
+                // 2. PISO GRIS DE REFERENCIA
                 const sueloGeo = new THREE.PlaneGeometry(100, 100);
-                const sueloMat = new THREE.MeshStandardMaterial({ color: 0x666666 });
+                const sueloMat = new THREE.MeshStandardMaterial({ color: 0x555555, roughness: 0.8 });
                 const suelo = new THREE.Mesh(sueloGeo, sueloMat);
                 suelo.rotation.x = -Math.PI / 2;
-                suelo.position.y = -0.05; 
+                suelo.position.y = -0.01; 
                 this.add(suelo);
 
-                // 3. CARGAR EL MODELO
+                // 3. CARGA DEL MODELO 3D
                 const loader = new GLTFLoader();
-                // Asegúrate de que el archivo en GitHub se llame jardin.glb
+                // Revisa que tu archivo en GitHub se llame jardin.glb (en minúsculas)
                 loader.load('jardin.glb', (gltf) => {
                     const modelo = gltf.scene;
                     
-                    // Ajuste de escala y posición
+                    // Ajustamos tamaño y lo tiramos un poco hacia atrás para verlo de frente
                     modelo.scale.set(1, 1, 1); 
-                    modelo.position.set(0, 0, -5); 
+                    modelo.position.set(0, 0, -4); 
 
                     modelo.traverse((node) => {
                         if (node.isMesh) {
-                            node.material.side = THREE.DoubleSide;
+                            node.castShadow = true;
+                            node.receiveShadow = true;
+                            if (node.material) node.material.side = THREE.DoubleSide;
                         }
                     });
 
                     this.add(modelo);
-                    console.log("¡Éxito! El jardín está en la escena.");
+                    console.log("¡Éxito! El jardín se acopló a la escena.");
                 }, undefined, (error) => {
                     console.error("Error al cargar el .glb:", error);
                 });
