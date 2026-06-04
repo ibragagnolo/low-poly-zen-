@@ -23,43 +23,47 @@
 
         class EscenaJardin extends xb.Script {
             init() {
-                // 1. Iluminación potente
-                const luzHemisferica = new THREE.HemisphereLight(0xffffff, 0xbbbbbb, 3);
-                this.add(luzHemisferica);
+                // 1. LUZ DE DÍA: Simula el cielo azul y el reflejo del suelo (Muy brillante)
+                const luzSol = new THREE.HemisphereLight(0xddeeff, 0x4f4f4f, 5);
+                this.add(luzSol);
 
-                const luzDireccional = new THREE.DirectionalLight(0xffffff, 2);
-                luzDireccional.position.set(5, 10, 7);
-                this.add(luzDireccional);
+                // 2. EL SOL: Luz directa blanca para generar volumen y sombras claras
+                const solDirecto = new THREE.DirectionalLight(0xffffff, 4);
+                solDirecto.position.set(10, 20, 10); // Posición alta para simular el mediodía
+                this.add(solDirecto);
 
-                // 2. Piso gris de referencia
-                const sueloGeo = new THREE.PlaneGeometry(20, 20);
-                const sueloMat = new THREE.MeshStandardMaterial({ color: 0x888888, roughness: 0.8 });
+                // 3. Piso gris de referencia para no flotar en el vacío azul
+                const sueloGeo = new THREE.PlaneGeometry(40, 40);
+                const sueloMat = new THREE.MeshStandardMaterial({ color: 0xaaaaaa, roughness: 0.9 });
                 const suelo = new THREE.Mesh(sueloGeo, sueloMat);
                 suelo.rotation.x = -Math.PI / 2;
                 suelo.position.y = -1.01;
                 this.add(suelo);
 
-                // 3. Carga del modelo con el nombre corregido (sin espacios)
+                // 4. Carga del modelo
                 const loader = new GLTFLoader();
                 loader.load('jardin.glb', (gltf) => {
                     const jardin = gltf.scene;
                     
-                    // Achicamos por si en Blender quedó gigante
+                    // Ajuste de escala por las dudas
                     jardin.scale.set(0.1, 0.1, 0.1);
-                    
-                    // Centramos la posición frente a la cámara
                     jardin.position.set(0, -1, -3); 
                     
                     jardin.traverse((child) => {
                         if (child.isMesh) {
                             child.castShadow = true;
                             child.receiveShadow = true;
-                            if (child.material) child.material.side = THREE.DoubleSide;
+                            
+                            // Forzamos a que los materiales reaccionen con fuerza a la nueva luz
+                            if (child.material) {
+                                child.material.side = THREE.DoubleSide;
+                                child.material.needsUpdate = true;
+                            }
                         }
                     });
                     
                     this.add(jardin);
-                    console.log("¡El modelo jardin.glb se cargó con éxito!");
+                    console.log("¡El modelo jardin.glb se cargó con éxito con luces de día!");
                 }, undefined, (error) => {
                     console.error('Error al cargar el archivo .glb:', error);
                 });
