@@ -1,90 +1,486 @@
 <!doctype html>
 <html lang="es">
   <head>
-    <title>Jardín Zen con Bong Estilizado</title>
+    <title>Mi Jardín Japonés XR | Zen Haven</title>
     <meta charset="utf-8" />
     <meta
       name="viewport"
       content="width=device-width, initial-scale=1.0, user-scalable=no"
     />
     <link type="text/css" rel="stylesheet" href="https://xrblocks.github.io/css/xr.css" />
-    <script>window.litDisableBundleWarning = true;</script>
+    <script>
+      window.litDisableBundleWarning = true;
+    </script>
     <script type="importmap">
       {
         "imports": {
           "three": "https://cdn.jsdelivr.net/npm/three@0.182.0/build/three.module.js",
           "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.182.0/examples/jsm/",
+          "troika-three-text": "https://cdn.jsdelivr.net/gh/protectwise/troika@028b81cf308f0f22e5aa8e78196be56ec1997af5/packages/troika-three-text/src/index.js",
+          "troika-three-utils": "https://cdn.jsdelivr.net/gh/protectwise/troika@v0.52.4/packages/troika-three-utils/src/index.js",
+          "troika-worker-utils": "https://cdn.jsdelivr.net/gh/protectwise/troika@v0.52.4/packages/troika-worker-utils/src/index.js",
+          "bidi-js": "https://esm.sh/bidi-js@%5E1.0.2?target=es2022",
+          "webgl-sdf-generator": "https://esm.sh/webgl-sdf-generator@1.1.1/es2022/webgl-sdf-generator.mjs",
           "lit": "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js",
+          "lit/": "https://esm.run/lit@3/",
           "xrblocks": "https://cdn.jsdelivr.net/npm/xrblocks@0.14.1/build/xrblocks.js",
           "xrblocks/addons/": "https://cdn.jsdelivr.net/npm/xrblocks@0.14.1/build/addons/"
         }
       }
     </script>
-    <style>body { margin: 0; background-color: #b3e5fc; overflow: hidden; }</style>
+    <style>
+      body { margin: 0; background-color: #b3e5fc; overflow: hidden; }
+    </style>
   </head>
+
   <body>
     <script type="module">
-      import 'xrblocks/addons/simulator/SimulatorAddons.js';
-      import * as THREE from 'three';
-      import * as xb from 'xrblocks';
+import 'xrblocks/addons/simulator/SimulatorAddons.js';
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import * as xb from 'xrblocks';
 
-      class EscenaJardinBong extends xb.Script {
-        constructor() {
-          super();
-          this.objetoBong = null;
-        }
+/**
+ * Escena Zen Interactiva con detección mejorada de controles XR.
+ * Al hacer trigger apuntando a los árboles, estos se mueven físicamente
+ * y desprenden ráfagas de pétalos de Sakura.
+ */
+class EscenaJardinPrimeraPersona extends xb.Script {
+  constructor() {
+    super();
+    
+    this.petalosSakura = [];
+    this.arbolesInteractivos = []; 
+    this.nubesFirmamento = []; 
+    this.objetoCampana = null;
+    this.campanasVientoActivas = false;
+    this.temporizadorCampana = 0;
+    
+    this.contextoAudio = null;
+    this.bloqueoCampana = false;
 
-        init() {
-          this.add(new THREE.HemisphereLight(0xffffff, 0xbbbbbb, 1.5));
-          const sol = new THREE.DirectionalLight(0xffffff, 2.0);
-          sol.position.set(10, 20, 10);
-          this.add(sol);
+    this.panelControl = null;
+    this.velocidadPetalos = 0.6;
+  }
 
-          const escenaGrupo = new THREE.Group();
-          escenaGrupo.position.set(0, 0, -1.5);
-          this.add(escenaGrupo);
+  iniciarAudio() {
+    if (!this.contextoAudio) {
+      this.contextoAudio = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (this.contextoAudio.state === 'suspended') {
+      this.contextoAudio.resume();
+    }
+  }
 
-          this.crearBong(escenaGrupo);
-          xb.core.input.addReticles();
-        }
+  sonarCampanaZen(frecuencia = 130) {
+    this.iniciarAudio();
+    if (!this.contextoAudio) return;
 
-        crearBong(grupo) {
-          const matVidrio = new THREE.MeshPhysicalMaterial({ color: 0x88ccff, transparent: true, opacity: 0.6, metalness: 0.1, roughness: 0.1 });
-          
-          const base = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.15, 0.2, 16), matVidrio);
-          base.position.set(0, 0.1, 0);
-          
-          const cuello = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, 0.4, 16), matVidrio);
-          cuello.position.set(0, 0.4, 0);
-          
-          const tuboLateral = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.15, 8), matVidrio);
-          tuboLateral.rotation.z = Math.PI / 4;
-          tuboLateral.position.set(0.1, 0.25, 0);
+    const t = this.contextoAudio.currentTime;
+    const armonicos = [1.0, 1.5, 1.98, 2.44, 3.12];
+    const volumenes = [0.6, 0.3, 0.2, 0.15, 0.08];
 
-          this.objetoBong = new THREE.Group();
-          this.objetoBong.add(base);
-          this.objetoBong.add(cuello);
-          this.objetoBong.add(tuboLateral);
-          this.objetoBong.userData = { esBong: true };
-          
-          grupo.add(this.objetoBong);
-        }
-
-        onSelectStart(event) {
-          if (this.objetoBong && xb.core.user.select(this.objetoBong, event.target)) {
-            // Efecto de feedback visual al tocar el objeto
-            this.objetoBong.rotation.z = 0.2;
-            setTimeout(() => { this.objetoBong.rotation.z = 0; }, 200);
-          }
-        }
+    armonicos.forEach((ratio, index) => {
+      const oscilador = this.contextoAudio.createOscillator();
+      const ganancia = this.contextoAudio.createGain();
+      
+      oscilador.type = 'sine';
+      oscilador.frequency.setValueAtTime(frecuencia * ratio, t);
+      
+      if (index > 0) {
+        oscilador.frequency.linearRampToValueAtTime(frecuencia * ratio * 1.01, t + 4.0);
       }
 
-      document.addEventListener('DOMContentLoaded', () => {
-        const opciones = new xb.Options();
-        opciones.enableUI();
-        opciones.setAppTitle('Jardín Zen con Bong');
-        xb.add(new EscenaJardinBong());
-        xb.init(opciones);
+      ganancia.gain.setValueAtTime(0, t);
+      ganancia.gain.linearRampToValueAtTime(volumenes[index], t + 0.08);
+      ganancia.gain.exponentialRampToValueAtTime(0.001, t + 5.0 / ratio);
+
+      oscilador.connect(ganancia);
+      ganancia.connect(this.contextoAudio.destination);
+
+      oscilador.start(t);
+      oscilador.stop(t + 7.0);
+    });
+  }
+
+  sonarCampanillaViento() {
+    this.iniciarAudio();
+    if (!this.contextoAudio) return;
+
+    const t = this.contextoAudio.currentTime;
+    const frecAleatoria = 850 + Math.random() * 750;
+    
+    const oscilador = this.contextoAudio.createOscillator();
+    const ganancia = this.contextoAudio.createGain();
+
+    oscilador.type = 'sine';
+    oscilador.frequency.setValueAtTime(frecAleatoria, t);
+    
+    ganancia.gain.setValueAtTime(0, t);
+    ganancia.gain.linearRampToValueAtTime(0.12, t + 0.01);
+    ganancia.gain.exponentialRampToValueAtTime(0.0001, t + 1.4);
+
+    oscilador.connect(ganancia);
+    ganancia.connect(this.contextoAudio.destination);
+
+    oscilador.start(t);
+    oscilador.stop(t + 1.6);
+  }
+
+  /**
+   * Genera pétalos directamente desde la copa del árbol activado
+   */
+  lanzarRafagaPetalosDesdeArbol(posicionArbol) {
+    let petalosModificados = 0;
+    const maxPetalosPorRafaga = 20; // Más pétalos por cada trigger
+
+    for (let i = 0; i < this.petalosSakura.length; i++) {
+      const petalo = this.petalosSakura[i];
+      
+      // Reutilizamos pétalos que estén cerca del suelo o cayendo lento
+      if (petalo.position.y < 0.5 || Math.random() > 0.5) {
+        petalo.position.set(
+          posicionArbol.x + (Math.random() * 0.6 - 0.3),
+          posicionArbol.y + 0.5 + (Math.random() * 0.4), 
+          posicionArbol.z + (Math.random() * 0.6 - 0.3)
+        );
+        
+        // Les damos velocidad física de caída dinámica hacia el frente/suelo
+        petalo.userData.velocidadDescenso = 0.6 + Math.random() * 0.6;
+        petalo.userData.frecuenciaViento = 4.0 + Math.random() * 3.0;
+
+        petalosModificados++;
+        if (petalosModificados >= maxPetalosPorRafaga) break;
+      }
+    }
+  }
+
+  init() {
+    const luzAmbiente = new THREE.HemisphereLight(0xffffff, 0xbbbbbb, 1.8);
+    this.add(luzAmbiente);
+
+    const sol = new THREE.DirectionalLight(0xffffff, 2.5);
+    sol.position.set(10, 20, 10);
+    sol.castShadow = true;
+    sol.shadow.mapSize.width = 2048;
+    sol.shadow.mapSize.height = 2048;
+    this.add(sol);
+
+    this.construirCieloYClouds();
+
+    const escenaGrupo = new THREE.Group();
+    escenaGrupo.position.set(0, 0, -1.5); 
+    this.add(escenaGrupo);
+
+    // Carga de tu archivo .glb original
+    const loader = new GLTFLoader();
+    loader.load('low poly zen.glb', (gltf) => {
+      const jardinCargado = gltf.scene;
+      jardinCargado.scale.set(1, 1, 1);
+      jardinCargado.position.set(0, 0, 0); 
+      
+      jardinCargado.traverse((child) => {
+        if (child.isMesh) {
+          child.castShadow = true;
+          child.receiveShadow = true;
+          if (child.material) child.material.side = THREE.DoubleSide;
+
+          const nombre = child.name.toLowerCase();
+          // Filtro inclusivo para detectar cualquier parte vegetal de tus árboles en el GLB
+          if (nombre.includes('arbol') || nombre.includes('tree') || nombre.includes('hoja') || nombre.includes('foliage') || nombre.includes('sakura')) {
+            this.registrarArbolInteractivo(child, escenaGrupo);
+          }
+        }
       });
-    </script>
+      
+      escenaGrupo.add(jardinCargado);
+      this.colocarCuencoCampana(escenaGrupo);
+    }, undefined, (error) => {
+      console.warn('Cargando entorno procedural de respaldo...', error);
+      this.crearEntornoProcedural(escenaGrupo);
+    });
+
+    this.inicializarParticulesSakura();
+    this.crearPanelInterfaz();
+    xb.core.input.addReticles();
+  }
+
+  /**
+   * Envuelve una malla del modelo en un nodo interactivo optimizado para triggers de mandos XR
+   */
+  registrarArbolInteractivo(mesh, grupoPadre) {
+    // Evitamos duplicados si la misma malla ya fue procesada
+    if (mesh.userData.registrado) return;
+    mesh.userData.registrado = true;
+
+    // Guardamos la referencia original para animar su rotación/movimiento completo
+    const infoArbol = {
+      objetoMalla: mesh,
+      temporizadorSacudida: 0,
+      esArbol: true
+    };
+    
+    this.arbolesInteractivos.push(infoArbol);
+  }
+
+  construirCieloYClouds() {
+    const skyGeo = new THREE.SphereGeometry(45, 32, 15);
+    const canvas = document.createElement('canvas');
+    canvas.width = 2;
+    canvas.height = 512;
+    const context = canvas.getContext('2d');
+    const gradient = context.createLinearGradient(0, 0, 0, 512);
+    gradient.addColorStop(0, '#53a1e6');   
+    gradient.addColorStop(0.55, '#8cc3f2'); 
+    gradient.addColorStop(1, '#e3f2fd');   
+    context.fillStyle = gradient;
+    context.fillRect(0, 0, 2, 512);
+    
+    const skyTexture = new THREE.CanvasTexture(canvas);
+    const skyMat = new THREE.MeshBasicMaterial({ map: skyTexture, side: THREE.BackSide, depthWrite: false });
+    const skyDome = new THREE.Mesh(skyGeo, skyMat);
+    this.add(skyDome);
+
+    const materialNube = new THREE.MeshLambertMaterial({ color: 0xffffff, flatShading: true, transparent: true, opacity: 0.9 });
+    const crearNubeSingular = (posX, posY, posZ, escala) => {
+      const grupoNube = new THREE.Group();
+      grupoNube.position.set(posX, posY, posZ);
+      const geoParte = new THREE.DodecahedronGeometry(0.8 * escala, 1);
+      
+      const p1 = new THREE.Mesh(geoParte, materialNube); grupoNube.add(p1);
+      const p2 = new THREE.Mesh(geoParte, materialNube); p2.position.set(-0.6 * escala, -0.2 * escala, 0.1 * escala); p2.scale.setScalar(0.75); grupoNube.add(p2);
+      const p3 = new THREE.Mesh(geoParte, materialNube); p3.position.set(0.6 * escala, -0.15 * escala, -0.1 * escala); p3.scale.setScalar(0.8); grupoNube.add(p3);
+
+      grupoNube.userData = { velocidadDeriva: 0.1 + Math.random() * 0.25, limiteX: 30 };
+      this.nubesFirmamento.push(grupoNube);
+      this.add(grupoNube);
+    };
+
+    crearNubeSingular(-12, 10, -15, 2.5);
+    crearNubeSingular(14, 14, -10, 3.2);
+    crearNubeSingular(-2, 11, -22, 2.0);
+    crearNubeSingular(20, 9, -5, 2.8);
+  }
+
+  crearEntornoProcedural(grupo) {
+    const terrenoGeo = new THREE.BoxGeometry(3.5, 0.4, 3.5, 8, 1, 8);
+    const pos = terrenoGeo.attributes.position;
+    for (let i = 0; i < pos.count; i++) {
+      let y = pos.getY(i);
+      if (y > 0) {
+        const x = pos.getX(i);
+        const z = pos.getZ(i);
+        let alteracion = Math.sin(x * 1.2) * 0.15 + Math.cos(z * 1.1) * 0.1;
+        if (Math.abs(z) < 0.45) alteracion = -0.18 + (Math.random() * 0.02);
+        pos.setY(i, y + alteracion);
+      }
+    }
+    terrenoGeo.computeVertexNormals();
+
+    const terrenoMat = new THREE.MeshLambertMaterial({ color: 0x76a060, flatShading: true });
+    const terreno = new THREE.Mesh(terrenoGeo, terrenoMat);
+    terreno.receiveShadow = true; terreno.castShadow = true;
+    grupo.add(terreno);
+
+    const aguaGeo = new THREE.PlaneGeometry(3.48, 0.85);
+    const aguaMat = new THREE.MeshPhysicalMaterial({ color: 0x3d7b85, transparent: true, opacity: 0.8, roughness: 0.15, flatShading: true });
+    const rio = new THREE.Mesh(aguaGeo, aguaMat);
+    rio.rotation.x = -Math.PI / 2; rio.position.set(0, 0.03, 0);
+    grupo.add(rio);
+
+    this.plantarFloraInteractiva(grupo);
+    this.colocarCuencoCampana(grupo);
+  }
+
+  plantarFloraInteractiva(grupo) {
+    const troncoMat = new THREE.MeshLambertMaterial({ color: 0x54473d, flatShading: true });
+    const rosaSuave = new THREE.MeshLambertMaterial({ color: 0xfca1b5, flatShading: true });
+
+    const plantarSakura = (x, y, z, escala = 1.0) => {
+      const arbol = new THREE.Group();
+      arbol.position.set(x, y, z);
+      arbol.scale.setScalar(escala);
+
+      const tronco = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.06, 0.4, 5), troncoMat);
+      tronco.position.y = 0.2;
+      arbol.add(tronco);
+
+      const copa = new THREE.Mesh(new THREE.DodecahedronGeometry(0.28, 1), rosaSuave);
+      copa.position.set(0, 0.5, 0);
+      arbol.add(copa);
+
+      grupo.add(arbol);
+      this.registrarArbolInteractivo(copa, grupo);
+    };
+
+    plantarSakura(-1.1, 0.15, -0.2, 1.2);
+    plantarSakura(1.0, 0.15, -1.0, 1.4);
+  }
+
+  colocarCuencoCampana(grupo) {
+    const campanaSoporte = new THREE.Group();
+    campanaSoporte.position.set(0.35, 1.1, -0.6);
+
+    const maderaPilar = new THREE.MeshLambertMaterial({ color: 0x4a3225, flatShading: true });
+    const metalCampana = new THREE.MeshStandardMaterial({ color: 0xcca152, roughness: 0.2, metalness: 0.9 });
+
+    const posteZ = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.4, 5), maderaPilar); posteZ.position.set(-0.15, 0.2, 0); campanaSoporte.add(posteZ);
+    const posteD = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.4, 5), maderaPilar); posteD.position.set(0.15, 0.2, 0); campanaSoporte.add(posteD);
+    const viga = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.03, 0.03), maderaPilar); viga.position.set(0, 0.4, 0); campanaSoporte.add(viga);
+
+    const campana = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.075, 0.12, 8), metalCampana);
+    campana.position.set(0, 0.28, 0);
+    campanaSoporte.add(campana);
+
+    campana.userData = { esCampana: true };
+    this.objetoCampana = campana;
+    grupo.add(campanaSoporte);
+  }
+
+  inicializarParticulesSakura() {
+    const cantidad = 65;
+    const petaloMat = new THREE.MeshBasicMaterial({ color: 0xffa6c9, side: THREE.DoubleSide });
+    const petaloGeo = new THREE.PlaneGeometry(0.02, 0.012);
+
+    for (let i = 0; i < cantidad; i++) {
+      const petalo = new THREE.Mesh(petaloGeo, petaloMat);
+      this.reubicarPetalo(petalo);
+      this.add(petalo);
+      this.petalosSakura.push(petalo);
+    }
+  }
+
+  reubicarPetalo(petalo) {
+    petalo.position.set((Math.random() * 3.0) - 1.5, 1.4 + (Math.random() * 0.8), -2.5 + (Math.random() * 2.0));
+    petalo.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, 0);
+    petalo.userData = {
+      velocidadDescenso: 0.25 + Math.random() * 0.4,
+      frecuenciaViento: 1 + Math.random() * 2,
+      faseFisica: Math.random() * 10,
+      giroX: Math.random() * 2.5,
+      giroY: Math.random() * 1.5
+    };
+  }
+
+  crearPanelInterfaz() {
+    this.panelControl = new xb.SpatialPanel({ width: 1.1, height: 1.25, backgroundColor: '#1c1e1cbb' });
+    this.panelControl.position.set(-1.4, 1.4, -1.5);
+    this.panelControl.rotation.y = Math.PI / 5;
+    this.add(this.panelControl);
+
+    const cuadricula = this.panelControl.addGrid();
+    cuadricula.addRow({weight: 0.2}).addText({ text: 'Jardín Zen Interactivo', fontColor: '#ffcc80', fontSize: 0.08 });
+    cuadricula.addRow({weight: 0.2}).addText({ text: 'Apunta con tu control XR y presiona el Trigger para agitar los árboles.', fontColor: '#ffffff', fontSize: 0.035 });
+
+    const filaViento = cuadricula.addRow({weight: 0.3});
+    const botonViento = filaViento.addCol({weight: 1.0}).addTextButton({ text: '🍃 Desatar Tormenta Sakura', fontColor: '#ffffff', backgroundColor: '#1565c0', fontSize: 0.14 });
+    
+    botonViento.onTriggered = () => {
+      this.arbolesInteractivos.forEach(arbol => {
+        arbol.temporizadorSacudida = 1.8;
+        const posMundial = new THREE.Vector3();
+        arbol.objetoMalla.getWorldPosition(posMundial);
+        this.lanzarRafagaPetalosDesdeArbol(posMundial);
+      });
+      this.sonarCampanillaViento();
+    };
+  }
+
+  /**
+   * Capturador de Trigger Universal (Mandos XR, Manos y Clic de Mouse)
+   */
+  onSelectStart(event) {
+    this.iniciarAudio();
+    const mandoControlador = event.target;
+    
+    // Iteramos sobre todos los árboles indexados de tu modelo .glb o procedurales
+    this.arbolesInteractivos.forEach(arbol => {
+      // Optimizamos la selección usando la malla directo o su contenedor
+      const golpeado = xb.core.user.select(arbol.objetoMalla, mandoControlador);
+      
+      if (golpeado) {
+        // 1. Iniciamos temporizador de movimiento elástico
+        arbol.temporizadorSacudida = 1.5; 
+        
+        // 2. Extraemos coordenadas del árbol en tiempo real
+        const posicionMundial = new THREE.Vector3();
+        arbol.objetoMalla.getWorldPosition(posicionMundial);
+        
+        // 3. Soltamos ráfaga localizada de hojas Sakura
+        this.lanzarRafagaPetalosDesdeArbol(posicionMundial);
+        
+        // 4. Feedback acústico relajante
+        this.sonarCampanillaViento();
+      }
+    });
+
+    // Interacción secundaria con el Cuenco Tibetano
+    if (this.objetoCampana) {
+      const golpeCuenco = xb.core.user.select(this.objetoCampana, mandoControlador);
+      if (golpeCuenco && !this.bloqueoCampana) {
+        this.bloqueoCampana = true;
+        this.sonarCampanaZen();
+        this.objetoCampana.position.x += 0.03;
+        setTimeout(() => { this.objetoCampana.position.x = 0; this.bloqueoCampana = false; }, 1200);
+      }
+    }
+  }
+
+  update() {
+    const dt = xb.getDeltaTime();
+
+    // 1. Render de caída y balanceo de los pétalos de Sakura
+    this.petalosSakura.forEach(petalo => {
+      const datos = petalo.userData;
+      petalo.position.y -= datos.velocidadDescenso * this.velocidadPetalos * dt;
+      datos.faseFisica += dt * datos.frecuenciaViento;
+      petalo.position.x += Math.sin(datos.faseFisica) * 0.003;
+
+      petalo.rotation.x += datos.giroX * dt;
+      petalo.rotation.y += datos.giroY * dt;
+
+      if (petalo.position.y < 0.1) {
+        this.reubicarPetalo(petalo);
+      }
+    });
+
+    // 2. ANIMACIÓN FÍSICA DE MOVIMIENTO DE LOS ÁRBOLES CUANDO RECIBEN TRIGGER
+    this.arbolesInteractivos.forEach(arbol => {
+      if (arbol.temporizadorSacudida > 0) {
+        arbol.temporizadorSacudida -= dt;
+        
+        // Usamos una oscilación amortiguada decreciente para que se mueva de lado a lado de forma orgánica
+        const fuerzaAmortiguada = arbol.temporizadorSacudida / 1.5;
+        const desfaseMovimiento = Math.sin(arbol.temporizadorSacudida * 18.0) * 0.06 * fuerzaAmortiguada;
+        
+        // Aplicamos el movimiento de flexión en las rotaciones locales de la malla
+        arbol.objetoMalla.rotation.z = desfaseMovimiento;
+        arbol.objetoMalla.rotation.x = desfaseMovimiento * 0.3; // Pequeño bamboleo tridimensional
+      } else {
+        // Reposo absoluto cuando termina el trigger
+        arbol.objetoMalla.rotation.z = 0;
+        arbol.objetoMalla.rotation.x = 0;
+      }
+    });
+
+    // 3. Movimiento de nubes
+    this.nubesFirmamento.forEach(nube => {
+      nube.position.x += nube.userData.velocidadDeriva * dt;
+      if (nube.position.x > nube.userData.limiteX) nube.position.x = -nube.userData.limiteX;
+    });
+  }
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+  const opciones = new xb.Options();
+  opciones.enableUI();
+  opciones.setAppTitle('Jardín Zen: Refugio de Paz');
+  opciones.enableHands(); 
+  opciones.enableWebXrSimulator = true; 
+
+  xb.add(new EscenaJardinPrimeraPersona());
+  xb.init(opciones);
+});
+</script>
   </body>
+</html>
