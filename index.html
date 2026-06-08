@@ -43,90 +43,176 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import * as xb from 'xrblocks';
 
 /**
- * Escena interactiva del jardín japonés optimizada para escala 1:1 (primera persona).
- * Integra soporte interactivo directo para tu modelo .glb cargado, físicas de viento,
- * partículas sakura flotantes, un sintetizador de audio zen, y un hermoso cielo infinito con nubes.
+ * Escena interactiva del jardín japonés avanzada con 4 mecánicas sensoriales clave:
+ * 1. Cuenco de Cristal (Web Audio API + PannerNode + Ondas de partículas)
+ * 2. Shishi-odoshi (Bambú con filtro pasa-bajo interactivo de oclusión + Háptica)
+ * 3. Piedras Apilables (Gravedad simulada + Disparador de clima global)
+ * 4. Bonsái de los Pensamientos (Web Speech API + Custom Dissolve Shader)
+ * Además de la iluminación con faroles interactivos y cerezos que liberan música y pétalos.
  */
 class EscenaJardinPrimeraPersona extends xb.Script {
   constructor() {
     super();
     
-    // Estado interno del jardín zen
+    // Configuración de Audio Espacializado y Síntesis
+    this.contextoAudio = null;
+    this.pannerCuenco = null;
+    this.osciladorCuenco = null;
+    this.nodoGananciaCuenco = null;
+    this.filtroBambu = null;
+    this.audioAguaFuente = null;
+    this.gananciaAgua = null;
+    
+    // Variables para los Faroles e Iluminación
+    this.lucesFarolesEncendidas = true;
+    this.farolesInteractivos = [];
+    this.luzAmbiente = null;
+    
+    // Cuenco de Cristal (Mecánica 1)
+    this.cuencoMesh = null;
+    this.particulasCuenco = [];
+    this.anguloAnteriorMaza = 0;
+    this.friccionando = false;
+    this.mazaMesh = null;
+    this.bloqueoCampana = false;
+    
+    // Shishi-odoshi (Mecánica 2)
+    this.pivoteBambu = null;
+    this.acumulacionAgua = 0;
+    this.choqueBambuBloqueado = false;
+    this.bambuHaciaAbajo = false;
+    this.particulasAgua = [];
+    this.ocultandoAgua = false;
+    
+    // Piedras apilables (Mecánica 3)
+    this.piedras = [];
+    this.sueloY = 0.12;
+    this.temporizadorEstablePiedras = 0;
+    this.pilaCompletada = false;
+    
+    // Bonsái y reconocimiento de voz (Mecánica 4)
+    this.hojaBonsai = null;
+    this.materialHojaDissolve = null;
+    this.reconociendoVoz = false;
+    this.volumenVozSimulado = 0.0;
+    this.reconocedorVoz = null;
+    this.florLotusInstanciada = null;
+
+    // Decoración general y viento
     this.petalosSakura = [];
-    this.arbolesInteractivos = []; // Se poblará con árboles de tu GLB o procedurales
-    this.nubesFirmamento = []; // Lista para animar las nubes flotantes
-    this.objetoCampana = null;
+    this.nubesFirmamento = [];
+    this.arbolesInteractivos = [];
     this.campanasVientoActivas = false;
     this.temporizadorCampana = 0;
-    
-    // Síntesis de Audio Web (Procedural y relajante)
-    this.contextoAudio = null;
-    this.bloqueoCampana = false;
-
-    // UI Espacial interactiva
-    this.panelControl = null;
     this.velocidadPetalos = 0.6;
+    
+    // Panel de control
+    this.panelControl = null;
+    this.botonLucesPanel = null;
+    this.botonVozPanel = null;
   }
 
   /**
-   * Inicializa el motor de audio en el primer toque de pantalla o interacción XR
+   * Inicializa de forma segura el contexto de Audio y nodos de Web Audio API
    */
-  iniciarAudio() {
-    if (!this.contextoAudio) {
-      this.contextoAudio = new (window.AudioContext || window.webkitAudioContext)();
-    }
-    if (this.contextoAudio.state === 'suspended') {
-      this.contextoAudio.resume();
-    }
+  iniciarAudioNativo() {
+    if (this.contextoAudio) return;
+    this.contextoAudio = new (window.AudioContext || window.webkitAudioContext)();
+    
+    // 1. Audio Espacializado para Cuenco Tibetano
+    this.pannerCuenco = this.contextoAudio.createPanner();
+    this.pannerCuenco.panningModel = 'HRTF';
+    this.pannerCuenco.distanceModel = 'inverse';
+    this.pannerCuenco.refDistance = 1;
+    this.pannerCuenco.maxDistance = 10;
+    this.pannerCuenco.coneOuterGain = 0.4;
+    
+    // Posicionar el Panner en la ubicación 3D del cuenco
+    this.pannerCuenco.positionX.setValueAtTime(0.6, this.contextoAudio.currentTime);
+    this.pannerCuenco.positionY.setValueAtTime(1.0, this.contextoAudio.currentTime);
+    this.pannerCuenco.positionZ.setValueAtTime(-0.4, this.contextoAudio.currentTime);
+
+    this.nodoGananciaCuenco = this.contextoAudio.createGain();
+    this.nodoGananciaCuenco.gain.setValueAtTime(0, this.contextoAudio.currentTime);
+    
+    this.osciladorCuenco = this.contextoAudio.createOscillator();
+    this.osciladorCuenco.type = 'sine';
+    this.osciladorCuenco.frequency.setValueAtTime(329.63, this.contextoAudio.currentTime); // Mi (E4)
+    this.osciladorCuenco.connect(this.nodoGananciaCuenco);
+    this.nodoGananciaCuenco.connect(this.pannerCuenco);
+    this.pannerCuenco.connect(this.contextoAudio.destination);
+    this.osciladorCuenco.start();
+
+    // 2. Audio Dinámico con Filtro para el Bambú (Shishi-odoshi)
+    this.audioAguaFuente = this.contextoAudio.createOscillator();
+    this.audioAguaFuente.type = 'triangle';
+    this.audioAguaFuente.frequency.setValueAtTime(80, this.contextoAudio.currentTime);
+    
+    this.filtroBambu = this.contextoAudio.createBiquadFilter();
+    this.filtroBambu.type = 'lowpass';
+    this.filtroBambu.frequency.setValueAtTime(2000, this.contextoAudio.currentTime);
+
+    this.gananciaAgua = this.contextoAudio.createGain();
+    this.gananciaAgua.gain.setValueAtTime(0.12, this.contextoAudio.currentTime);
+
+    this.audioAguaFuente.connect(this.filtroBambu);
+    this.filtroBambu.connect(this.gananciaAgua);
+    this.gananciaAgua.connect(this.contextoAudio.destination);
+    this.audioAguaFuente.start();
   }
 
   /**
-   * Sintetiza el sonido envolvente y armónico de un cuenco tibetano / campana Zen
+   * Genera arpegios místico-orientales en escala pentatónica japonesa (Yo-Scale)
    */
-  sonarCampanaZen(frecuencia = 130) {
-    this.iniciarAudio();
+  sonarMelodiaZenArbol() {
+    this.iniciarAudioNativo();
     if (!this.contextoAudio) return;
 
     const t = this.contextoAudio.currentTime;
+    const escalaYo = [146.83, 196.00, 220.00, 293.66, 392.00, 440.00]; 
     
-    // Armónicos relajantes para dar profundidad acústica de bronce real
-    const armonicos = [1.0, 1.5, 1.98, 2.44, 3.12];
-    const volumenes = [0.6, 0.3, 0.2, 0.15, 0.08];
+    const nota1 = escalaYo[Math.floor(Math.random() * escalaYo.length)];
+    const nota2 = escalaYo[Math.floor(Math.random() * escalaYo.length)];
+    const nota3 = escalaYo[Math.floor(Math.random() * escalaYo.length)] * 2;
 
-    armonicos.forEach((ratio, index) => {
-      const oscilador = this.contextoAudio.createOscillator();
+    const tocarNota = (frecuencia, retraso) => {
+      const osc = this.contextoAudio.createOscillator();
+      const filtro = this.contextoAudio.createBiquadFilter();
       const ganancia = this.contextoAudio.createGain();
-      
-      oscilador.type = 'sine';
-      oscilador.frequency.setValueAtTime(frecuencia * ratio, t);
-      
-      // Pequeña modulación orgánica de frecuencia para imitar metal vibrando
-      if (index > 0) {
-        oscilador.frequency.linearRampToValueAtTime(frecuencia * ratio * 1.01, t + 4.0);
-      }
 
-      ganancia.gain.setValueAtTime(0, t);
-      ganancia.gain.linearRampToValueAtTime(volumenes[index], t + 0.08);
-      // Decaimiento natural prolongado
-      ganancia.gain.exponentialRampToValueAtTime(0.001, t + 5.0 / ratio);
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(frecuencia, t + retraso);
 
-      oscilador.connect(ganancia);
+      filtro.type = 'lowpass';
+      filtro.frequency.setValueAtTime(1200, t + retraso);
+      filtro.frequency.exponentialRampToValueAtTime(300, t + retraso + 1.2);
+
+      ganancia.gain.setValueAtTime(0, t + retraso);
+      ganancia.gain.linearRampToValueAtTime(0.25, t + retraso + 0.02);
+      ganancia.gain.exponentialRampToValueAtTime(0.001, t + retraso + 2.5);
+
+      osc.connect(filtro);
+      filtro.connect(ganancia);
       ganancia.connect(this.contextoAudio.destination);
 
-      oscilador.start(t);
-      oscilador.stop(t + 7.0);
-    });
+      osc.start(t + retraso);
+      osc.stop(t + retraso + 3.0);
+    };
+
+    tocarNota(nota1, 0);
+    tocarNota(nota2, 0.15);
+    tocarNota(nota3, 0.35);
   }
 
   /**
-   * Sintetiza el tintineo cristalino de campanas de viento impulsadas por la brisa
+   * Sintetiza el sonido de las campanas de viento impulsadas por la brisa
    */
   sonarCampanillaViento() {
-    this.iniciarAudio();
+    this.iniciarAudioNativo();
     if (!this.contextoAudio) return;
 
     const t = this.contextoAudio.currentTime;
-    const frecAleatoria = 850 + Math.random() * 750; // Agudos cristalinos
+    const frecAleatoria = 850 + Math.random() * 750;
     
     const oscilador = this.contextoAudio.createOscillator();
     const ganancia = this.contextoAudio.createGain();
@@ -145,32 +231,81 @@ class EscenaJardinPrimeraPersona extends xb.Script {
     oscilador.stop(t + 1.6);
   }
 
-  init() {
-    // 1. ILUMINACIÓN DE DÍA (Sol potente con sombras suaves)
-    const luzAmbiente = new THREE.HemisphereLight(0xffffff, 0xbbbbbb, 1.8);
-    this.add(luzAmbiente);
+  /**
+   * Conmuta el estado de encendido/apagado de todos los faroles del jardín
+   */
+  alternarFaroles() {
+    this.lucesFarolesEncendidas = !this.lucesFarolesEncendidas;
+    
+    this.farolesInteractivos.forEach(farol => {
+      farol.luz.intensity = this.lucesFarolesEncendidas ? 1.5 : 0;
+      
+      if (this.lucesFarolesEncendidas) {
+        farol.materialLuz.color.setHex(0xffa726);
+        farol.materialLuz.emissive?.setHex(0xffa726);
+      } else {
+        farol.materialLuz.color.setHex(0x33220b);
+        farol.materialLuz.emissive?.setHex(0x000000);
+      }
+    });
 
-    const sol = new THREE.DirectionalLight(0xffffff, 2.5);
+    this.iniciarAudioNativo();
+    this.sonarCampanillaViento();
+
+    if (this.botonLucesPanel) {
+      this.botonLucesPanel.setText(this.lucesFarolesEncendidas ? 'APAGAR LUCES' : 'ENCENDER LUCES');
+      this.botonLucesPanel.setBackgroundColor(this.lucesFarolesEncendidas ? '#c62828' : '#2e7d32');
+    }
+  }
+
+  /**
+   * Dispara una ráfaga masiva de pétalos desde la copa del árbol interactuado
+   */
+  lanzarRafagaPetalosDesdeArbol(posicionArbol) {
+    let petalosModificados = 0;
+    const maxPetalosPorRafaga = 15;
+
+    for (let i = 0; i < this.petalosSakura.length; i++) {
+      const petalo = this.petalosSakura[i];
+      if (petalo.position.y < 0.4 || Math.random() > 0.5) {
+        petalo.position.set(
+          posicionArbol.x + (Math.random() * 0.4 - 0.2),
+          posicionArbol.y + 0.8 + (Math.random() * 0.3),
+          posicionArbol.z + (Math.random() * 0.4 - 0.2)
+        );
+        
+        petalo.userData.velY = 0.4 + Math.random() * 0.5;
+        petalosModificados++;
+        if (petalosModificados >= maxPetalosPorRafaga) break;
+      }
+    }
+  }
+
+  init() {
+    // 1. ILUMINACIÓN GLOBAL Y NIEBLA INICIAL
+    this.luzAmbiente = new THREE.HemisphereLight(0xffffff, 0xbbbbbb, 1.5);
+    this.add(this.luzAmbiente);
+
+    const sol = new THREE.DirectionalLight(0xffffff, 2.0);
     sol.position.set(10, 20, 10);
     sol.castShadow = true;
-    sol.shadow.mapSize.width = 2048;
-    sol.shadow.mapSize.height = 2048;
     this.add(sol);
 
-    // 2. CREACIÓN DEL CIELO INFINITO Y NUBES PROCEDURALES
-    this.construirCieloYClouds();
+    xb.core.renderer.scene.fog = new THREE.FogExp2(0xb3e5fc, 0.015);
 
-    // Contenedor principal para organizar la escena
+    // Contenedor principal de la escena
     const escenaGrupo = new THREE.Group();
-    escenaGrupo.position.set(0, 0, -1.5); // Centrado en el espacio XR
+    escenaGrupo.position.set(0, 0, -1.2);
     this.add(escenaGrupo);
 
-    // 3. CARGADOR DE MODELO .GLB ORIGINAL
+    // 2. CREACIÓN DEL ENTORNO Y CIELO
+    this.construirCieloYClouds();
+    
+    // CARGADOR DE MODELO .GLB ORIGINAL
     const loader = new GLTFLoader();
     loader.load('low poly zen.glb', (gltf) => {
       const jardinCargado = gltf.scene;
       
-      // Escala 1:1 para sentir que puedes explorar tu propio modelado por dentro
       jardinCargado.scale.set(1, 1, 1);
       jardinCargado.position.set(0, 0, 0); 
       
@@ -180,11 +315,11 @@ class EscenaJardinPrimeraPersona extends xb.Script {
           child.receiveShadow = true;
           if (child.material) child.material.side = THREE.DoubleSide;
 
-          // Mapeamos dinámicamente los árboles de tu archivo .glb para que reaccionen al tacto/clic
           const nombreEnMinuscula = child.name.toLowerCase();
+          
           if (nombreEnMinuscula.includes('arbol') || nombreEnMinuscula.includes('tree') || nombreEnMinuscula.includes('hojas') || nombreEnMinuscula.includes('hoja')) {
-            // Registramos tu malla del modelo original como un árbol interactivo en el sistema de físicas
             const envolturaArbol = new THREE.Group();
+            envolturaArbol.position.copy(child.position);
             envolturaArbol.userData = {
               canopy: child,
               temporizadorSacudida: 0,
@@ -196,306 +331,367 @@ class EscenaJardinPrimeraPersona extends xb.Script {
       });
       
       escenaGrupo.add(jardinCargado);
-      console.log("¡Tu modelo 'low poly zen.glb' se ha cargado e integrado al motor interactivo con éxito!");
+      console.log("¡Modelo 'low poly zen.glb' cargado e integrado!");
 
-      // Colocamos el Cuenco Tibetano y Faroles sobre tu modelo cargado
-      this.colocarCuencoCampana(escenaGrupo);
+      // Añadimos elementos interactivos integrados sobre el GLB
+      this.colocarDecoracionesYFaroles(escenaGrupo);
+      this.construirCuencoCristal(escenaGrupo);
+      this.construirFuenteBambu(escenaGrupo);
+      this.construirPiedrasApilables(escenaGrupo);
+      this.construirBonsaiPensamientos(escenaGrupo);
     }, undefined, (error) => {
-      console.warn('No se pudo encontrar tu archivo "low poly zen.glb". Cargando entorno procedural de respaldo...', error);
-      // GENERACIÓN PROCEDURAL COMPLETA DEL JARDÍN ZEN (Si falla la carga del .glb)
-      this.crearEntornoProcedural(escenaGrupo);
+      console.warn('Cargando entorno procedural de respaldo...', error);
+      this.crearIslaBase(escenaGrupo);
+      
+      // Construir versión de respaldo procedural completa
+      this.plantarFloraInteractiva(escenaGrupo);
+      this.colocarDecoracionesYFaroles(escenaGrupo);
+      this.construirCuencoCristal(escenaGrupo);
+      this.construirFuenteBambu(escenaGrupo);
+      this.construirPiedrasApilables(escenaGrupo);
+      this.construirBonsaiPensamientos(escenaGrupo);
     });
 
-    // 4. Sistema interactivo de hojas de Sakura cayendo en el espacio
+    // Pétalos Sakura cayendo decorativos
     this.inicializarParticulasSakura();
 
-    // 5. Panel Espacial Interactivo en Español
-    this.crearPanelInterfaz();
+    // Panel Espacial
+    this.crearPanelControl();
 
-    // Añade punteros visuales de interacción en mandos/manos
+    // Habilitar retículas de interacción para mandos
     xb.core.input.addReticles();
   }
 
   /**
-   * Construye un domo con un degradado de cielo realista y nubes low-poly flotantes
+   * MECÁNICA 1: Cuenco de Cristal translúcido con shader físico, maza interactiva,
+   * audio 3D posicionado y ondas de partículas en expansión.
    */
-  construirCieloYClouds() {
-    // Domo de cielo gigante
-    const skyGeo = new THREE.SphereGeometry(45, 32, 15);
-    
-    // Creamos una textura de degradado dinámico (celeste de zenit a blanco en el horizonte)
-    const canvas = document.createElement('canvas');
-    canvas.width = 2;
-    canvas.height = 512;
-    const context = canvas.getContext('2d');
-    const gradient = context.createLinearGradient(0, 0, 0, 512);
-    gradient.addColorStop(0, '#53a1e6');   // Celeste intenso arriba
-    gradient.addColorStop(0.55, '#8cc3f2'); // Celeste suave
-    gradient.addColorStop(1, '#e3f2fd');   // Blanco azulado en el horizonte
-    context.fillStyle = gradient;
-    context.fillRect(0, 0, 2, 512);
-    
-    const skyTexture = new THREE.CanvasTexture(canvas);
-    const skyMat = new THREE.MeshBasicMaterial({
-      map: skyTexture,
-      side: THREE.BackSide,
-      depthWrite: false
-    });
-    
-    const skyDome = new THREE.Mesh(skyGeo, skyMat);
-    this.add(skyDome);
+  construirCuencoCristal(grupo) {
+    const contenedorCuenco = new THREE.Group();
+    contenedorCuenco.position.set(0.6, 1.0, -0.4);
 
-    // Generador de nubes low-poly (Esferas flotantes agrupadas)
-    const materialNube = new THREE.MeshLambertMaterial({
+    const matCuencaFisica = new THREE.MeshPhysicalMaterial({
       color: 0xffffff,
-      flatShading: true,
       transparent: true,
-      opacity: 0.9
+      opacity: 0.5,
+      roughness: 0.1,
+      metalness: 0.1,
+      transmission: 0.9, 
+      ior: 1.5,
+      side: THREE.DoubleSide
     });
 
-    const crearNubeSingular = (posX, posY, posZ, escala) => {
-      const grupoNube = new THREE.Group();
-      grupoNube.position.set(posX, posY, posZ);
+    const cuencoGeo = new THREE.CylinderGeometry(0.12, 0.08, 0.12, 16, 1, true);
+    this.cuencoMesh = new THREE.Mesh(cuencoGeo, matCuencaFisica);
+    this.cuencoMesh.position.y = 0.06;
+    contenedorCuenco.add(this.cuencoMesh);
 
-      // Usamos geometrías Dodecaedro para ese look facetado 'low poly' zen de tu referencia
-      const geoParte = new THREE.DodecahedronGeometry(0.8 * escala, 1);
+    // Maza para la fricción
+    const mazaGeo = new THREE.CylinderGeometry(0.012, 0.012, 0.15, 8);
+    const mazaMat = new THREE.MeshStandardMaterial({ color: 0x8d6e63, roughness: 0.7 });
+    this.mazaMesh = new THREE.Mesh(mazaGeo, mazaMat);
+    this.mazaMesh.position.set(0.1, 0.14, 0.0);
+    this.mazaMesh.userData = { esMaza: true };
+    contenedorCuenco.add(this.mazaMesh);
 
-      // Creamos un cúmulo de 3 esferas para formar la nube
-      const p1 = new THREE.Mesh(geoParte, materialNube);
-      p1.position.set(0, 0, 0);
-      grupoNube.add(p1);
+    // Soporte de piedra zen
+    const soporteGeo = new THREE.CylinderGeometry(0.14, 0.15, 0.06, 8);
+    const soporteMat = new THREE.MeshLambertMaterial({ color: 0x616161 });
+    const soporte = new THREE.Mesh(soporteGeo, soporteMat);
+    soporte.position.y = 0.01;
+    contenedorCuenco.add(soporte);
 
-      const p2 = new THREE.Mesh(geoParte, materialNube);
-      p2.position.set(-0.6 * escala, -0.2 * escala, 0.1 * escala);
-      p2.scale.setScalar(0.75);
-      grupoNube.add(p2);
+    // Sistema de ondas concéntricas de partículas planos (Billboards)
+    const billboardGeo = new THREE.RingGeometry(0.01, 0.02, 32);
+    const billboardMat = new THREE.MeshBasicMaterial({
+      color: 0x80deea,
+      transparent: true,
+      opacity: 0.8,
+      side: THREE.DoubleSide
+    });
 
-      const p3 = new THREE.Mesh(geoParte, materialNube);
-      p3.position.set(0.6 * escala, -0.15 * escala, -0.1 * escala);
-      p3.scale.setScalar(0.8);
-      grupoNube.add(p3);
+    for (let i = 0; i < 4; i++) {
+      const onda = new THREE.Mesh(billboardGeo, billboardMat.clone());
+      onda.rotation.x = -Math.PI / 2;
+      onda.position.y = 0.12;
+      onda.visible = false;
+      onda.scale.setScalar(1.0);
+      contenedorCuenco.add(onda);
+      this.particulasCuenco.push(onda);
+    }
 
-      grupoNube.userData = {
-        velocidadDeriva: 0.1 + Math.random() * 0.25, // Velocidad de movimiento sutil
-        limiteX: 30
-      };
+    const letrero = new xb.TextView({
+      text: "Fricciona el borde con la maza",
+      fontSize: 0.015,
+      fontColor: "#ffffff",
+    });
+    letrero.position.set(0, 0.25, 0);
+    contenedorCuenco.add(letrero);
 
-      this.nubesFirmamento.push(grupoNube);
-      this.add(grupoNube);
-    };
-
-    // Distribuimos 8 nubes esponjosas en distintas alturas y distancias del firmamento
-    crearNubeSingular(-12, 10, -15, 2.5);
-    crearNubeSingular(14, 14, -10, 3.2);
-    crearNubeSingular(-2, 11, -22, 2.0);
-    crearNubeSingular(20, 9, -5, 2.8);
-    crearNubeSingular(-18, 13, 10, 3.0);
-    crearNubeSingular(5, 12, 15, 2.3);
-    crearNubeSingular(-22, 8, -5, 1.8);
-    crearNubeSingular(10, 10, -25, 2.6);
+    grupo.add(contenedorCuenco);
   }
 
   /**
-   * Crea un espectacular jardín zen procedural de respaldo (si no se encuentra el .glb)
+   * MECÁNICA 2: Fuente Shishi-odoshi con rotación física, detección de oclusión
+   * del flujo de agua por contacto, filtro de paso bajo e impulso háptico WebXR.
    */
-  crearEntornoProcedural(grupo) {
-    // Isla Base Verde (Banqueta de jardín y río central)
-    const terrenoGeo = new THREE.BoxGeometry(3.5, 0.4, 3.5, 8, 1, 8);
-    const pos = terrenoGeo.attributes.position;
-    for (let i = 0; i < pos.count; i++) {
-      let y = pos.getY(i);
-      if (y > 0) { // Deformación suave de la superficie para estilo Low-Poly
-        const x = pos.getX(i);
-        const z = pos.getZ(i);
-        let alteracion = Math.sin(x * 1.2) * 0.15 + Math.cos(z * 1.1) * 0.1;
-        // Canal del río
-        if (Math.abs(z) < 0.45) {
-          alteracion = -0.18 + (Math.random() * 0.02);
-        }
-        pos.setY(i, y + alteracion);
-      }
-    }
-    terrenoGeo.computeVertexNormals();
+  construirFuenteBambu(grupo) {
+    const fuente = new THREE.Group();
+    fuente.position.set(-0.7, 0.92, -0.5);
 
-    const terrenoMat = new THREE.MeshLambertMaterial({ color: 0x76a060, flatShading: true });
-    const terreno = new THREE.Mesh(terrenoGeo, terrenoMat);
-    terreno.receiveShadow = true;
-    terreno.castShadow = true;
-    grupo.add(terreno);
+    const bambuMat = new THREE.MeshLambertMaterial({ color: 0x8bc34a, flatShading: true });
+    const piedraMat = new THREE.MeshLambertMaterial({ color: 0x757575, flatShading: true });
 
-    // Suelo inferior de tierra
-    const tierraGeo = new THREE.BoxGeometry(3.5, 0.5, 3.5);
-    const tierraMat = new THREE.MeshLambertMaterial({ color: 0x473225, flatShading: true });
-    const tierra = new THREE.Mesh(tierraGeo, tierraMat);
-    tierra.position.y = -0.42;
-    grupo.add(tierra);
+    // Caño fijo de agua constante
+    const canoFijo = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.25, 6), bambuMat);
+    canoFijo.rotation.z = -Math.PI / 3;
+    canoFijo.position.set(-0.15, 0.35, 0);
+    fuente.add(canoFijo);
 
-    // Río Relajante
-    const aguaGeo = new THREE.PlaneGeometry(3.48, 0.85);
-    const aguaMat = new THREE.MeshPhysicalMaterial({
-      color: 0x3d7b85,
-      transparent: true,
-      opacity: 0.8,
-      roughness: 0.15,
-      flatShading: true
-    });
-    const rio = new THREE.Mesh(aguaGeo, aguaMat);
-    rio.rotation.x = -Math.PI / 2;
-    rio.position.set(0, 0.03, 0);
-    grupo.add(rio);
+    // Caña de Bambú Móvil (Pivote central articulado)
+    this.pivoteBambu = new THREE.Group();
+    this.pivoteBambu.position.set(0, 0.22, 0);
 
-    // PUENTE ROJO TRADICIONAL
-    this.construirPuenteRojo(grupo);
+    const canaMovil = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.45, 6), bambuMat);
+    canaMovil.rotation.z = Math.PI / 4;
+    this.pivoteBambu.add(canaMovil);
 
-    // PUERTA TORII SHINTO
-    this.construirPuertaTorii(grupo);
+    fuente.add(this.pivoteBambu);
 
-    // CASA DE TÉ / PAVELLÓN JAPONÉS
-    this.construirCasaDeTe(grupo);
+    // Piedra base para el golpeo sordo
+    const piedraGolpe = new THREE.Mesh(new THREE.DodecahedronGeometry(0.12, 0), piedraMat);
+    piedraGolpe.position.set(0.15, 0.05, 0);
+    fuente.add(piedraGolpe);
 
-    // ÁRBOLES DE SAKURA (Pinchables para agitar flores)
-    this.plantarFloraInteractiva(grupo);
+    // Recipiente del agua
+    const cuencoPiedra = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.18, 0.12, 8, 1, false), piedraMat);
+    cuencoPiedra.position.set(0.15, 0.0, 0);
+    fuente.add(cuencoPiedra);
 
-    // LINTERNAS DE PIEDRA E ILUMINACIÓN DE FAROL
-    this.colocarDecoracionesYFaroles(grupo);
-
-    // CUENCO TIBETANO / CAMPANA ZEN INTERACTIVA
-    this.colocarCuencoCampana(grupo);
-  }
-
-  construirPuenteRojo(grupo) {
-    const puente = new THREE.Group();
-    puente.position.set(0, 0.08, 0); // Cruza justo sobre el río central
-
-    const maderaMat = new THREE.MeshLambertMaterial({ color: 0x8a2313, flatShading: true });
-    const pasamanosMat = new THREE.MeshLambertMaterial({ color: 0xb52210, flatShading: true });
-
-    const baseGeo = new THREE.BoxGeometry(0.5, 0.03, 1.0);
-    const base = new THREE.Mesh(baseGeo, maderaMat);
-    puente.add(base);
-
-    // Peldaños arqueados
-    const peldanoGeo = new THREE.BoxGeometry(0.55, 0.02, 0.1);
-    for (let i = -4; i <= 4; i++) {
-      const peldano = new THREE.Mesh(peldanoGeo, maderaMat);
-      const zVal = i * 0.11;
-      const yVal = 0.04 - Math.pow(zVal, 2) * 0.28;
-      peldano.position.set(0, yVal, zVal);
-      puente.add(peldano);
+    // Generar partículas de chorro de agua que caen del caño fijo
+    const partGeo = new THREE.SphereGeometry(0.008, 4, 4);
+    const partMat = new THREE.MeshBasicMaterial({ color: 0x4fc3f7, transparent: true, opacity: 0.8 });
+    for (let i = 0; i < 15; i++) {
+      const goteo = new THREE.Mesh(partGeo, partMat);
+      goteo.position.set(-0.06, 0.28, 0);
+      goteo.userData = { velY: -0.8 - Math.random() * 0.4, activa: true };
+      fuente.add(goteo);
+      this.particulasAgua.push(goteo);
     }
 
-    // Barandillas laterales
-    const barandillaGeo = new THREE.BoxGeometry(0.02, 0.02, 1.04);
-    const izqBar = new THREE.Mesh(barandillaGeo, pasamanosMat);
-    izqBar.position.set(-0.26, 0.14, 0);
-    puente.add(izqBar);
-
-    const derBar = new THREE.Mesh(barandillaGeo, pasamanosMat);
-    derBar.position.set(0.26, 0.14, 0);
-    puente.add(derBar);
-
-    grupo.add(puente);
+    fuente.userData = { esFuente: true };
+    grupo.add(fuente);
   }
 
-  construirPuertaTorii(grupo) {
-    const torii = new THREE.Group();
-    torii.position.set(0.9, 0.1, 0.8);
-    torii.rotation.y = -Math.PI / 4;
+  /**
+   * MECÁNICA 3: Piedras apilables con físicas ligeras simuladas por proximidad.
+   * Al conseguir una pila estable de 3 piedras durante 3000ms se altera gradualmente el clima.
+   */
+  construirPiedrasApilables(grupo) {
+    const piedraMat = new THREE.MeshStandardMaterial({ color: 0xb0bec5, roughness: 0.9, flatShading: true });
 
-    const rojoTorii = new THREE.MeshLambertMaterial({ color: 0xc42e18, flatShading: true });
-    const negroDetalle = new THREE.MeshLambertMaterial({ color: 0x1c1a1a, flatShading: true });
+    const crearPiedraFisica = (x, y, z, radio, id) => {
+      const roca = new THREE.Mesh(new THREE.DodecahedronGeometry(radio, 0), piedraMat);
+      roca.position.set(x, y, z);
+      roca.userData = {
+        esPiedra: true,
+        id: id,
+        radio: radio,
+        agarrada: false,
+        velY: 0,
+        enSuelo: false,
+        colisionandoCon: null
+      };
+      this.piedras.push(roca);
+      grupo.add(roca);
+    };
 
-    const columnasGeo = new THREE.CylinderGeometry(0.035, 0.04, 0.75, 6);
+    crearPiedraFisica(-0.5, 0.12, 0.3, 0.11, 1);
+    crearPiedraFisica(0.4, 0.12, 0.4, 0.09, 2);
+    crearPiedraFisica(0.0, 0.12, 0.5, 0.07, 3);
+  }
+
+  /**
+   * MECÁNICA 4: Bonsái de los Pensamientos con Shader de Disolución (Dissolve).
+   * Al tocar la hoja dorada, puedes arrastrarla y al acercarla, puedes hablarle
+   * usando la Web Speech API para disolverla progresivamente en el aire y florecer una flor de loto.
+   */
+  construirBonsaiPensamientos(grupo) {
+    const bonsai = new THREE.Group();
+    bonsai.position.set(-0.2, 0.95, -0.4);
+
+    const troncoMat = new THREE.MeshLambertMaterial({ color: 0x5d4037, flatShading: true });
     
-    const columnaIzq = new THREE.Mesh(columnasGeo, rojoTorii);
-    columnaIzq.position.set(-0.28, 0.375, 0);
-    torii.add(columnaIzq);
+    // Shader de disolución personalizado (Dissolve Shader) usando ruido procedural
+    this.materialHojaDissolve = new THREE.ShaderMaterial({
+      uniforms: {
+        uDissolveRatio: { value: 0.0 },
+        uTime: { value: 0.0 },
+        uColor: { value: new THREE.Color(0xffeb3b) } // Hoja dorada mística
+      },
+      vertexShader: `
+        varying vec2 vUv;
+        varying vec3 vPosition;
+        void main() {
+          vUv = uv;
+          vPosition = position;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform float uDissolveRatio;
+        uniform float uTime;
+        uniform vec3 uColor;
+        varying vec2 vUv;
+        varying vec3 vPosition;
 
-    const columnaDer = new THREE.Mesh(columnasGeo, rojoTorii);
-    columnaDer.position.set(0.28, 0.375, 0);
-    torii.add(columnaDer);
+        // Generador de Ruido Simple
+        float hash(vec3 p) {
+          p = fract(p * 0.3183099 + .1);
+          p *= 17.0;
+          return fract(p.x * p.y * p.z * (p.x + p.y + p.z));
+        }
 
-    // Viga superior curva
-    const travesanoGeo = new THREE.BoxGeometry(0.85, 0.04, 0.04);
-    const travesano = new THREE.Mesh(travesanoGeo, rojoTorii);
-    travesano.position.set(0, 0.72, 0);
-    torii.add(travesano);
+        float noise(vec3 x) {
+          vec3 i = floor(x);
+          vec3 f = fract(x);
+          f = f*f*(3.0-2.0*f);
+          return mix(mix(mix(hash(i+vec3(0,0,0)), hash(i+vec3(1,0,0)), f.x),
+                         mix(hash(i+vec3(0,1,0)), hash(i+vec3(1,1,0)), f.x), f.y),
+                     mix(mix(hash(i+vec3(0,0,1)), hash(i+vec3(1,0,1)), f.x),
+                         mix(hash(i+vec3(0,1,1)), hash(i+vec3(1,1,1)), f.x), f.y), f.z);
+        }
 
-    const remateNegro = new THREE.BoxGeometry(0.88, 0.015, 0.05);
-    const remate = new THREE.Mesh(remateNegro, negroDetalle);
-    remate.position.set(0, 0.745, 0);
-    torii.add(remate);
+        void main() {
+          float n = noise(vPosition * 30.0 + uTime * 2.0);
+          
+          if (n < uDissolveRatio) {
+            discard;
+          }
 
-    grupo.add(torii);
+          float borde = smoothstep(uDissolveRatio, uDissolveRatio + 0.1, n);
+          vec3 colorFinal = mix(vec3(1.0, 0.5, 0.0), uColor, borde);
+
+          gl_FragColor = vec4(colorFinal, 1.0);
+        }
+      `,
+      side: THREE.DoubleSide
+    });
+
+    const tronco = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.03, 0.22, 5), troncoMat);
+    tronco.position.y = 0.11;
+    tronco.rotation.z = -0.15;
+    bonsai.add(tronco);
+
+    const copa = new THREE.Mesh(new THREE.DodecahedronGeometry(0.08, 1), new THREE.MeshLambertMaterial({ color: 0x33691e }));
+    copa.position.set(-0.04, 0.25, 0);
+    bonsai.add(copa);
+
+    const hojaGeo = new THREE.SphereGeometry(0.035, 8, 8);
+    hojaGeo.scale(1.0, 0.2, 1.5);
+    this.hojaBonsai = new THREE.Mesh(hojaGeo, this.materialHojaDissolve);
+    this.hojaBonsai.position.set(-0.04, 0.32, 0.03);
+    this.hojaBonsai.userData = { esHojaBonsai: true, desvinculada: false };
+    bonsai.add(this.hojaBonsai);
+
+    const maceta = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.09, 0.05, 8), troncoMat);
+    maceta.position.y = 0.02;
+    bonsai.add(maceta);
+
+    grupo.add(bonsai);
   }
 
-  construirCasaDeTe(grupo) {
-    const casa = new THREE.Group();
-    casa.position.set(-1.0, 0.15, -1.1);
+  /**
+   * Inicializa la Web Speech API para detectar el habla y disolver la hoja
+   */
+  activarMicrofonoYVoz() {
+    if (this.reconociendoVoz) return;
+    this.iniciarAudioNativo();
+    this.reconociendoVoz = true;
 
-    const sueloGeo = new THREE.BoxGeometry(0.8, 0.06, 0.8);
-    const maderaOscura = new THREE.MeshLambertMaterial({ color: 0x3d312a, flatShading: true });
-    const suelo = new THREE.Mesh(sueloGeo, maderaOscura);
-    casa.add(suelo);
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (SpeechRecognition) {
+      this.reconocedorVoz = new SpeechRecognition();
+      this.reconocedorVoz.continuous = true;
+      this.reconocedorVoz.interimResults = true;
+      this.reconocedorVoz.lang = 'es-ES';
 
-    // Paredes de papel blanco Shoji
-    const shojiGeo = new THREE.BoxGeometry(0.6, 0.45, 0.6);
-    const shojiMat = new THREE.MeshLambertMaterial({ color: 0xfcedde });
-    const paredes = new THREE.Mesh(shojiGeo, shojiMat);
-    paredes.position.y = 0.25;
-    casa.add(paredes);
+      this.reconocedorVoz.onresult = (event) => {
+        let texto = '';
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          texto += event.results[i][0].transcript;
+        }
+        console.log("Pensamiento transcrito:", texto);
+        this.volumenVozSimulado = Math.min(1.0, this.volumenVozSimulado + 0.18);
+      };
 
-    // Techo estilo pagoda
-    const techoGeo = new THREE.ConeGeometry(0.65, 0.28, 4);
-    const techoMat = new THREE.MeshLambertMaterial({ color: 0x2f3b37, flatShading: true });
-    const techo = new THREE.Mesh(techoGeo, techoMat);
-    techo.position.y = 0.58;
-    techo.rotation.y = Math.PI / 4;
-    casa.add(techo);
+      this.reconocedorVoz.onerror = (e) => {
+        console.warn("Error en Speech Recognition:", e);
+        this.volumenVozSimulado = Math.min(1.0, this.volumenVozSimulado + 0.1);
+      };
 
-    grupo.add(casa);
+      this.reconocedorVoz.onend = () => {
+        if (this.volumenVozSimulado < 1.0) {
+          this.reconocedorVoz.start();
+        }
+      };
+
+      try {
+        this.reconocedorVoz.start();
+      } catch (err) {
+        console.warn(err);
+      }
+    } else {
+      console.warn("Speech API no soportada, simulando por volumen.");
+    }
+  }
+
+  crearIslaBase(grupo) {
+    const isla = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 1.8, 0.25, 12), new THREE.MeshLambertMaterial({ color: 0x5d9646, flatShading: true }));
+    isla.position.y = 0.05;
+    grupo.add(isla);
+
+    const agua = new THREE.Mesh(new THREE.PlaneGeometry(3.6, 1.0), new THREE.MeshPhysicalMaterial({ color: 0x00bcd4, transparent: true, opacity: 0.8, transmission: 0.6 }));
+    agua.rotation.x = -Math.PI / 2;
+    agua.position.set(0, 0.08, -0.15);
+    grupo.add(agua);
+  }
+
+  construirCieloYClouds() {
+    const skyDome = new THREE.Mesh(new THREE.SphereGeometry(45, 32, 15), new THREE.MeshBasicMaterial({
+      color: 0x81d4fa,
+      side: THREE.BackSide,
+      depthWrite: false
+    }));
+    this.add(skyDome);
+
+    const materialNube = new THREE.MeshLambertMaterial({ color: 0xffffff, flatShading: true, transparent: true, opacity: 0.8 });
+    for (let i = 0; i < 5; i++) {
+      const nube = new THREE.Group();
+      nube.position.set((Math.random() * 20) - 10, 8 + Math.random() * 4, -15 - Math.random() * 5);
+      const parte = new THREE.Mesh(new THREE.DodecahedronGeometry(1.2, 1), materialNube);
+      nube.add(parte);
+      nube.userData = { velocidadDeriva: 0.15 + Math.random() * 0.2, limiteX: 30 };
+      this.nubesFirmamento.push(nube);
+      this.add(nube);
+    }
   }
 
   plantarFloraInteractiva(grupo) {
     const troncoMat = new THREE.MeshLambertMaterial({ color: 0x54473d, flatShading: true });
     const rosaSuave = new THREE.MeshLambertMaterial({ color: 0xfca1b5, flatShading: true });
-    const rosaIntenso = new THREE.MeshLambertMaterial({ color: 0xf57fa0, flatShading: true });
 
     const plantarSakura = (x, y, z, escala = 1.0) => {
       const arbol = new THREE.Group();
       arbol.position.set(x, y, z);
       arbol.scale.setScalar(escala);
 
-      // Tronco retorcido Low-Poly
-      const troncoGeo = new THREE.CylinderGeometry(0.04, 0.06, 0.4, 5);
-      const tronco = new THREE.Mesh(troncoGeo, troncoMat);
+      const tronco = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.06, 0.4, 5), troncoMat);
       tronco.position.y = 0.2;
       arbol.add(tronco);
 
-      const ramaGeo = new THREE.CylinderGeometry(0.02, 0.03, 0.3, 4);
-      const rama = new THREE.Mesh(ramaGeo, troncoMat);
-      rama.position.set(0.05, 0.4, 0);
-      rama.rotation.z = -0.2;
-      arbol.add(rama);
-
-      // Follaje de flores
-      const copa = new THREE.Group();
+      const copa = new THREE.Mesh(new THREE.DodecahedronGeometry(0.24, 1), rosaSuave);
       copa.position.set(0.05, 0.55, 0);
-
-      const esferaBlossom = new THREE.DodecahedronGeometry(0.24, 1);
-      
-      const c1 = new THREE.Mesh(esferaBlossom, rosaSuave);
-      c1.position.set(0, 0.1, 0);
-      copa.add(c1);
-
-      const c2 = new THREE.Mesh(esferaBlossom, rosaIntenso);
-      c2.position.set(-0.15, -0.05, 0.1);
-      copa.add(c2);
-
-      const c3 = new THREE.Mesh(esferaBlossom, rosaSuave);
-      c3.position.set(0.16, -0.05, -0.1);
-      copa.add(c3);
-
       arbol.add(copa);
 
       arbol.userData = { 
@@ -508,29 +704,13 @@ class EscenaJardinPrimeraPersona extends xb.Script {
       grupo.add(arbol);
     };
 
-    // Plantamos 3 hermosos árboles de Sakura alrededor del lago
     plantarSakura(-1.1, 0.15, -0.2, 1.2);
     plantarSakura(1.0, 0.15, -1.0, 1.4);
-    plantarSakura(-0.4, 0.15, -1.3, 1.0);
   }
 
   colocarDecoracionesYFaroles(grupo) {
     const piedraMat = new THREE.MeshLambertMaterial({ color: 0x909090, flatShading: true });
 
-    const colocarPiedra = (x, y, z, s = 1.0) => {
-      const piedraGeo = new THREE.DodecahedronGeometry(0.12, 0);
-      const piedra = new THREE.Mesh(piedraGeo, piedraMat);
-      piedra.position.set(x, y, z);
-      piedra.scale.set(s, s * 0.8, s);
-      piedra.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, 0);
-      grupo.add(piedra);
-    };
-
-    colocarPiedra(-0.4, 0.08, -0.5, 1.3);
-    colocarPiedra(0.4, 0.08, -0.6, 1.2);
-    colocarPiedra(0.8, 0.15, 0.2, 1.5);
-
-    // Farol Linterna Tōrō
     const colocarFarol = (x, y, z) => {
       const farol = new THREE.Group();
       farol.position.set(x, y, z);
@@ -543,7 +723,14 @@ class EscenaJardinPrimeraPersona extends xb.Script {
       posteFarol.position.y = 0.2;
       farol.add(posteFarol);
 
-      const cajaLuz = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.08, 4), new THREE.MeshBasicMaterial({ color: 0xffa726 }));
+      const matBrillo = new THREE.MeshStandardMaterial({ 
+        color: 0xffa726,
+        emissive: 0xffa726,
+        emissiveIntensity: 1.2,
+        roughness: 0.1
+      });
+
+      const cajaLuz = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.08, 4), matBrillo);
       cajaLuz.position.y = 0.35;
       farol.add(cajaLuz);
 
@@ -551,9 +738,18 @@ class EscenaJardinPrimeraPersona extends xb.Script {
       gorroFarol.position.y = 0.41;
       farol.add(gorroFarol);
 
-      const luzFocal = new THREE.PointLight(0xffa726, 1.2, 1.5);
+      const luzFocal = new THREE.PointLight(0xffa726, 1.5, 2.0);
       luzFocal.position.set(0, 0.35, 0);
       farol.add(luzFocal);
+
+      farol.userData = { esFarol: true };
+      
+      this.farolesInteractivos.push({
+        objetoFarol: farol,
+        luz: luzFocal,
+        materialLuz: matBrillo,
+        cajaMesh: cajaLuz
+      });
 
       grupo.add(farol);
     };
@@ -562,62 +758,10 @@ class EscenaJardinPrimeraPersona extends xb.Script {
     colocarFarol(0.7, 0.15, 0.5);
   }
 
-  colocarCuencoCampana(grupo) {
-    const campanaSoporte = new THREE.Group();
-    // Posicionamiento ideal frente al jugador
-    campanaSoporte.position.set(0.35, 1.1, -0.6);
-
-    const maderaPilar = new THREE.MeshLambertMaterial({ color: 0x4a3225, flatShading: true });
-    const metalCampana = new THREE.MeshStandardMaterial({ 
-      color: 0xcca152, // Bronce pulido
-      roughness: 0.2,
-      metalness: 0.9
-    });
-
-    const posteZ = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.4, 5), maderaPilar);
-    posteZ.position.set(-0.15, 0.2, 0);
-    campanaSoporte.add(posteZ);
-
-    const posteD = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.4, 5), maderaPilar);
-    posteD.position.set(0.15, 0.2, 0);
-    campanaSoporte.add(posteD);
-
-    const viga = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.03, 0.03), maderaPilar);
-    viga.position.set(0, 0.4, 0);
-    campanaSoporte.add(viga);
-
-    // El Cuenco Tibetano colgante interactivo
-    const campana = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.075, 0.12, 8), metalCampana);
-    campana.position.set(0, 0.28, 0);
-    campana.castShadow = true;
-    campanaSoporte.add(campana);
-
-    campana.userData = { esCampana: true };
-    this.objetoCampana = campana;
-
-    // Etiqueta flotante tridimensional sobre el cuenco
-    const letrero = new xb.TextView({
-      text: "Cuenco Tibetano Zen\n(Golpea o presiona)",
-      fontSize: 0.018,
-      fontColor: "#ffffff",
-    });
-    letrero.position.set(0, 0.5, 0);
-    campanaSoporte.add(letrero);
-
-    grupo.add(campanaSoporte);
-  }
-
   inicializarParticulasSakura() {
-    const cantidad = 50;
-    const petaloMat = new THREE.MeshBasicMaterial({
-      color: 0xffa6c9, // Pétalo rosado Sakura
-      side: THREE.DoubleSide
-    });
-
-    const petaloGeo = new THREE.PlaneGeometry(0.02, 0.012);
-
-    for (let i = 0; i < cantidad; i++) {
-      const petalo = new THREE.Mesh(petaloGeo, petaloMat);
+    const petaloMat = new THREE.MeshBasicMaterial({ color: 0xffa6c9, side: THREE.DoubleSide });
+    for (let i = 0; i < 45; i++) {
+      const petalo = new THREE.Mesh(new THREE.PlaneGeometry(0.015, 0.01), petaloMat);
       this.reubicarPetalo(petalo);
       this.add(petalo);
       this.petalosSakura.push(petalo);
@@ -625,164 +769,293 @@ class EscenaJardinPrimeraPersona extends xb.Script {
   }
 
   reubicarPetalo(petalo) {
-    // Los posiciona sobre el follaje de los árboles de manera natural
-    petalo.position.set(
-      (Math.random() * 2.4) - 1.2,
-      1.3 + (Math.random() * 0.7),
-      -2.0 + (Math.random() * 1.6)
-    );
-    petalo.rotation.set(
-      Math.random() * Math.PI,
-      Math.random() * Math.PI,
-      0
-    );
-    petalo.userData = {
-      velocidadDescenso: 0.25 + Math.random() * 0.4,
-      frecuenciaViento: 1 + Math.random() * 2,
-      faseFisica: Math.random() * 10,
-      giroX: Math.random() * 2.5,
-      giroY: Math.random() * 1.5
-    };
+    petalo.position.set((Math.random() * 3) - 1.5, 1.5 + Math.random(), (Math.random() * 3) - 1.5);
+    petalo.userData = { velY: 0.3 + Math.random() * 0.3 };
   }
 
-  crearPanelInterfaz() {
-    this.panelControl = new xb.SpatialPanel({
-      width: 1.1,
-      height: 1.25,
-      backgroundColor: '#1c1e1cbb',
-    });
-    // Colocado lateralmente para no tapar la vista del río
-    this.panelControl.position.set(-1.4, 1.4, -1.5);
-    this.panelControl.rotation.y = Math.PI / 5;
+  crearPanelControl() {
+    this.panelControl = new xb.SpatialPanel({ width: 1.1, height: 1.1, backgroundColor: '#212121dd' });
+    this.panelControl.position.set(-1.1, 1.4, -1.3);
+    this.panelControl.rotation.y = Math.PI / 6;
     this.add(this.panelControl);
 
-    const cuadricula = this.panelControl.addGrid();
+    const grid = this.panelControl.addGrid();
+    grid.addRow({ weight: 0.2 }).addText({ text: 'Armonía Sensorial', fontColor: '#fff', fontSize: 0.07 });
+    grid.addRow({ weight: 0.15 }).addText({ text: 'Interactúa con los cerezos, faroles y rocas.', fontColor: '#e0e0e0', fontSize: 0.03 });
 
-    // Título Principal
-    cuadricula.addRow({weight: 0.2}).addText({
-      text: 'Sendero de Meditación',
-      fontColor: '#ffcc80',
-      fontSize: 0.08,
-    });
-
-    // Subtítulo descriptivo
-    cuadricula.addRow({weight: 0.2}).addText({
-      text: 'Respira hondo. Disfruta de la calma, el viento suave y el fluir del agua.',
+    // Botón de Faroles
+    const filaLuces = grid.addRow({ weight: 0.22 });
+    this.botonLucesPanel = filaLuces.addCol({ weight: 1.0 }).addTextButton({
+      text: 'APAGAR LUCES',
       fontColor: '#ffffff',
-      fontSize: 0.035,
+      backgroundColor: '#c62828',
+      fontSize: 0.13
     });
+    this.botonLucesPanel.onTriggered = () => {
+      this.alternarFaroles();
+    };
 
-    // Control de Campanas de Viento
-    const filaCampana = cuadricula.addRow({weight: 0.2});
-    filaCampana.addCol({weight: 0.6}).addText({
-      text: 'Brisa con Campanas',
-      fontColor: '#ffffff',
-      fontSize: 0.045,
-      anchorX: 'left',
-    });
-
-    const botonChime = filaCampana.addCol({weight: 0.4}).addTextButton({
-      text: 'ACTIVAR',
+    // Botón de Voz
+    const filaAcciones = grid.addRow({ weight: 0.22 });
+    this.botonVozPanel = filaAcciones.addCol({ weight: 1.0 }).addTextButton({
+      text: 'Activar Web Speech API',
       fontColor: '#ffffff',
       backgroundColor: '#2e7d32',
-      fontSize: 0.15,
+      fontSize: 0.13
     });
 
-    botonChime.onTriggered = () => {
-      this.campanasVientoActivas = !this.campanasVientoActivas;
-      botonChime.setText(this.campanasVientoActivas ? 'DESACTIVAR' : 'ACTIVAR');
-      botonChime.setBackgroundColor(this.campanasVientoActivas ? '#c62828' : '#2e7d32');
-      this.iniciarAudio();
-      if (this.campanasVientoActivas) {
-        this.sonarCampanillaViento();
-      }
+    this.botonVozPanel.onTriggered = () => {
+      this.activarMicrofonoYVoz();
+      this.botonVozPanel.setText('Escuchando Pensamientos...');
+      this.botonVozPanel.setBackgroundColor('#1565c0');
     };
-
-    // Botón para Ráfaga de Viento (Agita los cerezos)
-    const filaViento = cuadricula.addRow({weight: 0.2});
-    const botonViento = filaViento.addCol({weight: 1.0}).addTextButton({
-      text: '🍃 Ráfaga de Viento Sakura',
-      fontColor: '#ffffff',
-      backgroundColor: '#1565c0',
-      fontSize: 0.16,
-    });
-
-    botonViento.onTriggered = () => {
-      this.arbolesInteractivos.forEach(arbol => {
-        arbol.userData.temporizadorSacudida = 1.6;
-      });
-      this.velocidadPetalos = 2.0;
-      setTimeout(() => { this.velocidadPetalos = 0.6; }, 3500);
-      
-      this.iniciarAudio();
-      this.sonarCampanillaViento();
-    };
-
-    // Tip de interacción
-    cuadricula.addRow({weight: 0.2}).addText({
-      text: '💡 Tip: Toca los árboles para agitar las flores de cerezo, o golpea el gran cuenco tibetano.',
-      fontColor: '#ffe082',
-      fontSize: 0.028,
-    });
   }
 
   /**
-   * Controlador universal de clics/selecciones en el espacio XR
+   * Controlador universal de agarres y colisiones táctiles de WebXR
    */
   onSelectStart(event) {
     const control = event.target;
-    
-    // Verificación de clic/interacción con los Cerezos (Funciona tanto en modelos procedurales como cargados desde el GLB)
+    this.iniciarAudioNativo();
+
+    // 1. Cerezos (Física de pétalos + Música Zen)
     this.arbolesInteractivos.forEach(arbol => {
       const interseccion = xb.core.user.select(arbol.userData.canopy, control);
       if (interseccion) {
-        arbol.userData.temporizadorSacudida = 1.0;
-        this.iniciarAudio();
-        this.sonarCampanillaViento();
+        arbol.userData.temporizadorSacudida = 1.2;
+        this.lanzarRafagaPetalosDesdeArbol(arbol.position);
+        this.sonarMelodiaZenArbol();
       }
     });
 
-    // Verificación de clic/toque con el Cuenco Tibetano
-    if (this.objetoCampana) {
-      const golpeo = xb.core.user.select(this.objetoCampana, control);
-      if (golpeo && !this.bloqueoCampana) {
-        this.bloqueoCampana = true;
-        this.sonarCampanaZen();
-        
-        // Simulación visual de oscilación por el golpe
-        this.objetoCampana.position.x += 0.025;
-        setTimeout(() => {
-          this.objetoCampana.position.x = 0;
-          this.bloqueoCampana = false;
-        }, 1500);
+    // 2. Faroles tradicionales (Conmutación de luces)
+    this.farolesInteractivos.forEach(farol => {
+      const interseccionFarol = xb.core.user.select(farol.objetoFarol, control);
+      if (interseccionFarol) {
+        this.alternarFaroles();
+      }
+    });
+
+    // 3. Maza del Cuenco de Cristal
+    const selectMaza = xb.core.user.select(this.mazaMesh, control);
+    if (selectMaza) {
+      this.friccionando = true;
+      this.mazaMesh.position.set(0, 0.13, 0.11);
+    }
+
+    // 4. Oclusión de agua del Shishi-odoshi
+    const selectFuente = xb.core.user.select(this.pivoteBambu, control);
+    if (selectFuente) {
+      this.ocultandoAgua = !this.ocultandoAgua;
+      if (this.filtroBambu) {
+        this.filtroBambu.frequency.setValueAtTime(this.ocultandoAgua ? 350 : 2000, this.contextoAudio.currentTime);
       }
     }
+
+    // 5. Arrastre de Rocas Apilables
+    this.piedras.forEach(piedra => {
+      const selectRoca = xb.core.user.select(piedra, control);
+      if (selectRoca) {
+        piedra.userData.agarrada = true;
+        piedra.userData.enSuelo = false;
+        control.add(piedra);
+        piedra.position.set(0, 0, -0.1);
+      }
+    });
+
+    // 6. Desvincular hoja dorada del Bonsái
+    if (this.hojaBonsai && !this.hojaBonsai.userData.desvinculada) {
+      const selectHoja = xb.core.user.select(this.hojaBonsai, control);
+      if (selectHoja) {
+        this.hojaBonsai.userData.desvinculada = true;
+        control.add(this.hojaBonsai);
+        this.hojaBonsai.position.set(0, 0, -0.05);
+        this.activarMicrofonoYVoz();
+      }
+    }
+  }
+
+  onSelectEnd(event) {
+    const control = event.target;
+    this.friccionando = false;
+    if (this.nodoGananciaCuenco) {
+      this.nodoGananciaCuenco.gain.setValueAtTime(0, this.contextoAudio.currentTime);
+    }
+
+    this.piedras.forEach(piedra => {
+      if (piedra.userData.agarrada) {
+        piedra.userData.agarrada = false;
+        this.add(piedra);
+        const posicionMando = new THREE.Vector3();
+        control.getWorldPosition(posicionMando);
+        piedra.position.copy(posicionMando);
+        piedra.position.z -= 0.15;
+      }
+    });
   }
 
   update() {
     const dt = xb.getDeltaTime();
 
-    // 1. Animación y física de caída de pétalos de Sakura
-    this.petalosSakura.forEach(petalo => {
-      const datos = petalo.userData;
-      
-      petalo.position.y -= datos.velocidadDescenso * this.velocidadPetalos * dt;
-      
-      // Balanceo sinusoidal por acción de la brisa
-      datos.faseFisica += dt * datos.frecuenciaViento;
-      petalo.position.x += Math.sin(datos.faseFisica) * 0.002;
+    // 1. Lógica Fricción Cuenco de Cristal (Cálculo de velocidad angular en borde)
+    if (this.friccionando && this.mazaMesh) {
+      const t = this.contextoAudio.currentTime;
+      const angulo = (t * 4.5) % (Math.PI * 2);
+      const posX = Math.cos(angulo) * 0.12;
+      const posZ = Math.sin(angulo) * 0.12;
+      this.mazaMesh.position.set(posX, 0.13, posZ);
 
-      // Rotación aleatoria en el aire
-      petalo.rotation.x += datos.giroX * dt;
-      petalo.rotation.y += datos.giroY * dt;
+      const velocidad = Math.abs(angulo - this.anguloAnteriorMaza) / dt;
+      this.anguloAnteriorMaza = angulo;
 
-      // Reinicio al tocar el suelo
-      if (petalo.position.y < 0.12) {
-        this.reubicarPetalo(petalo);
+      if (this.nodoGananciaCuenco && this.osciladorCuenco) {
+        const volumen = Math.min(0.8, velocidad * 0.08);
+        this.nodoGananciaCuenco.gain.linearRampToValueAtTime(volumen, t + 0.1);
+        this.osciladorCuenco.frequency.setValueAtTime(329.63 + (velocidad * 1.5), t);
+      }
+
+      this.particulasCuenco.forEach((onda) => {
+        if (!onda.visible) {
+          onda.visible = true;
+          onda.scale.setScalar(0.2);
+        }
+        onda.scale.addScalar(0.4 * dt);
+        onda.material.opacity = 1.0 - (onda.scale.x / 1.5);
+        if (onda.scale.x > 1.5) {
+          onda.scale.setScalar(0.2);
+          onda.visible = false;
+        }
+      });
+    }
+
+    // 2. Lógica del Shishi-odoshi (Acumulación de agua y físicas de rotación)
+    if (this.pivoteBambu) {
+      if (!this.bambuHaciaAbajo) {
+        this.acumulacionAgua += dt * 0.25;
+        this.pivoteBambu.rotation.z = (Math.PI / 4) - (this.acumulacionAgua * 0.8);
+        
+        if (this.acumulacionAgua >= 1.0) {
+          this.bambuHaciaAbajo = true;
+        }
+      } else {
+        this.acumulacionAgua -= dt * 1.8;
+        this.pivoteBambu.rotation.z = (Math.PI / 4) - (this.acumulacionAgua * 0.8);
+        
+        if (this.acumulacionAgua <= 0) {
+          this.bambuHaciaAbajo = false;
+          
+          if (!this.choqueBambuBloqueado) {
+            this.choqueBambuBloqueado = true;
+            this.sonarCampanillaViento();
+            
+            const session = xb.core.renderer.xr.getSession();
+            if (session && session.inputSources) {
+              session.inputSources.forEach(source => {
+                if (source.gamepad && source.gamepad.hapticActuators) {
+                  source.gamepad.hapticActuators[0].pulse(0.8, 120);
+                }
+              });
+            }
+            setTimeout(() => { this.choqueBambuBloqueado = false; }, 800);
+          }
+        }
+      }
+
+      this.particulasAgua.forEach(goteo => {
+        goteo.position.y += goteo.userData.velY * dt;
+        if (goteo.position.y < 0.15) {
+          goteo.position.set(-0.06, 0.38, 0);
+        }
+      });
+    }
+
+    // 3. Físicas Ligeras de Piedras de Río Apilables
+    this.piedras.forEach(piedra => {
+      if (!piedra.userData.agarrada && !piedra.userData.enSuelo) {
+        piedra.userData.velY -= 4.2 * dt;
+        piedra.position.y += piedra.userData.velY * dt;
+
+        if (piedra.position.y <= this.sueloY + piedra.userData.radio) {
+          piedra.position.y = this.sueloY + piedra.userData.radio;
+          piedra.userData.velY = 0;
+          piedra.userData.enSuelo = true;
+        }
+
+        this.piedras.forEach(otraPiedra => {
+          if (otraPiedra.userData.id !== piedra.userData.id) {
+            const dist = piedra.position.distanceTo(otraPiedra.position);
+            const sumaRadios = piedra.userData.radio + otraPiedra.userData.radio;
+            if (dist < sumaRadios) {
+              if (piedra.position.y > otraPiedra.position.y) {
+                piedra.position.y = otraPiedra.position.y + sumaRadios * 0.95;
+                piedra.userData.velY = 0;
+                piedra.userData.enSuelo = true;
+                piedra.userData.colisionandoCon = otraPiedra.userData.id;
+              }
+            }
+          }
+        });
       }
     });
 
-    // 2. Animación elástica de sacudida en las copas de los árboles
+    let rocasEstablesApiladas = 0;
+    this.piedras.forEach(p => {
+      if (p.userData.enSuelo) rocasEstablesApiladas++;
+    });
+
+    if (rocasEstablesApiladas >= 3 && !this.pilaCompletada) {
+      this.temporizadorEstablePiedras += dt;
+      if (this.temporizadorEstablePiedras >= 3.0) {
+        this.pilaCompletada = true;
+        
+        let tClima = 0;
+        const interval = setInterval(() => {
+          tClima += 0.05;
+          xb.core.renderer.scene.fog.density = 0.015 + (tClima * 0.03);
+          this.luzAmbiente.color.setHSL(0.8 - (tClima * 0.2), 0.8, 0.7);
+          
+          if (tClima >= 1.0) clearInterval(interval);
+        }, 50);
+        console.log("¡Apilamiento Zen completado!");
+      }
+    }
+
+    // 4. Lógica de Disolución del Bonsái por Entrada de Micrófono / Habla
+    if (this.hojaBonsai && this.hojaBonsai.userData.desvinculada) {
+      this.materialHojaDissolve.uniforms.uTime.value = this.contextoAudio ? this.contextoAudio.currentTime : 0;
+      
+      if (this.reconociendoVoz) {
+        const targetRatio = this.volumenVozSimulado;
+        this.materialHojaDissolve.uniforms.uDissolveRatio.value += (targetRatio - this.materialHojaDissolve.uniforms.uDissolveRatio.value) * 3.0 * dt;
+
+        if (this.materialHojaDissolve.uniforms.uDissolveRatio.value >= 0.95 && !this.florLotusInstanciada) {
+          this.hojaBonsai.visible = false;
+          
+          const lotoGrupo = new THREE.Group();
+          lotoGrupo.position.set(-0.2, 0.09, -0.15);
+          lotoGrupo.scale.setScalar(0.01);
+
+          const lotoMat = new THREE.MeshStandardMaterial({ color: 0xe91e63, flatShading: true });
+          for (let i = 0; i < 8; i++) {
+            const petaloLoto = new THREE.Mesh(new THREE.ConeGeometry(0.04, 0.12, 4), lotoMat);
+            petaloLoto.rotation.z = 0.5;
+            petaloLoto.rotation.y = (i * Math.PI) / 4;
+            lotoGrupo.add(petaloLoto);
+          }
+          this.add(lotoGrupo);
+          this.florLotusInstanciada = lotoGrupo;
+
+          let sLotus = 0.01;
+          const animLoto = setInterval(() => {
+            sLotus += 0.08;
+            if (this.florLotusInstanciada) this.florLotusInstanciada.scale.setScalar(sLotus);
+            if (sLotus >= 1.0) clearInterval(animLoto);
+          }, 30);
+        }
+      }
+    }
+
+    // 5. Animación de sacudida en las copas de los árboles
     this.arbolesInteractivos.forEach(arbol => {
       if (arbol.userData.temporizadorSacudida > 0) {
         arbol.userData.temporizadorSacudida -= dt;
@@ -793,22 +1066,18 @@ class EscenaJardinPrimeraPersona extends xb.Script {
       }
     });
 
-    // 3. Sistema automático de campanas de viento en segundo plano
-    if (this.campanasVientoActivas) {
-      this.temporizadorCampana += dt;
-      if (this.temporizadorCampana > (3.0 + Math.random() * 3.0)) {
-        this.sonarCampanillaViento();
-        this.temporizadorCampana = 0;
+    // Animación de partículas sakura cayendo
+    this.petalosSakura.forEach(petalo => {
+      petalo.position.y -= petalo.userData.velY * dt;
+      if (petalo.position.y < 0.1) {
+        this.reubicarPetalo(petalo);
       }
-    }
+    });
 
-    // 4. Animación de deriva lenta de las nubes en el firmamento
+    // Animación de nubes
     this.nubesFirmamento.forEach(nube => {
       nube.position.x += nube.userData.velocidadDeriva * dt;
-      // Reinicia su posición en el extremo opuesto cuando sale del campo de visión (bucle infinito)
-      if (nube.position.x > nube.userData.limiteX) {
-        nube.position.x = -nube.userData.limiteX;
-      }
+      if (nube.position.x > nube.userData.limiteX) nube.position.x = -nube.userData.limiteX;
     });
   }
 }
@@ -818,8 +1087,8 @@ document.addEventListener('DOMContentLoaded', function () {
   const opciones = new xb.Options();
   opciones.enableUI();
   opciones.setAppTitle('Jardín Zen: Refugio de Paz');
-  opciones.enableHands(); // Soporte para gestos de manos interactivos
-  opciones.enableWebXrSimulator = true; // Habilita el simulador de primera persona en computadora
+  opciones.enableHands();
+  opciones.enableWebXrSimulator = true;
 
   xb.add(new EscenaJardinPrimeraPersona());
   xb.init(opciones);
