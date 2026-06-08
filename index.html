@@ -35,7 +35,6 @@
   </head>
 
   <body>
-    <!-- El motor de XR Blocks gestionará los controles, el bucle de renderizado y el modo VR/AR -->
     <script type="module">
 import 'xrblocks/addons/simulator/SimulatorAddons.js';
 import * as THREE from 'three';
@@ -43,34 +42,28 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import * as xb from 'xrblocks';
 
 /**
- * Escena interactiva del jardín japonés optimizada para escala 1:1 (primera persona).
- * Integra soporte interactivo directo para tu modelo .glb cargado, físicas de viento,
- * partículas sakura flotantes, un sintetizador de audio zen, y un hermoso cielo infinito con nubes.
+ * Escena Zen Interactiva optimizada para tu modelo GLB.
+ * Detecta las esferas grandes de hojas (UV Spheres / Icospheres) al disparar con el gatillo (trigger),
+ * sacudiendo el árbol físicamente y liberando una ráfaga localizada de pétalos de Sakura.
  */
 class EscenaJardinPrimeraPersona extends xb.Script {
   constructor() {
     super();
     
-    // Estado interno del jardín zen
     this.petalosSakura = [];
-    this.arbolesInteractivos = []; // Se poblará con árboles de tu GLB o procedurales
-    this.nubesFirmamento = []; // Lista para animar las nubes flotantes
+    this.arbolesInteractivos = []; 
+    this.nubesFirmamento = []; 
     this.objetoCampana = null;
     this.campanasVientoActivas = false;
     this.temporizadorCampana = 0;
     
-    // Síntesis de Audio Web (Procedural y relajante)
     this.contextoAudio = null;
     this.bloqueoCampana = false;
 
-    // UI Espacial interactiva
     this.panelControl = null;
     this.velocidadPetalos = 0.6;
   }
 
-  /**
-   * Inicializa el motor de audio en el primer toque de pantalla o interacción XR
-   */
   iniciarAudio() {
     if (!this.contextoAudio) {
       this.contextoAudio = new (window.AudioContext || window.webkitAudioContext)();
@@ -80,16 +73,11 @@ class EscenaJardinPrimeraPersona extends xb.Script {
     }
   }
 
-  /**
-   * Sintetiza el sonido envolvente y armónico de un cuenco tibetano / campana Zen
-   */
   sonarCampanaZen(frecuencia = 130) {
     this.iniciarAudio();
     if (!this.contextoAudio) return;
 
     const t = this.contextoAudio.currentTime;
-    
-    // Armónicos relajantes para dar profundidad acústica de bronce real
     const armonicos = [1.0, 1.5, 1.98, 2.44, 3.12];
     const volumenes = [0.6, 0.3, 0.2, 0.15, 0.08];
 
@@ -100,14 +88,12 @@ class EscenaJardinPrimeraPersona extends xb.Script {
       oscilador.type = 'sine';
       oscilador.frequency.setValueAtTime(frecuencia * ratio, t);
       
-      // Pequeña modulación orgánica de frecuencia para imitar metal vibrando
       if (index > 0) {
         oscilador.frequency.linearRampToValueAtTime(frecuencia * ratio * 1.01, t + 4.0);
       }
 
       ganancia.gain.setValueAtTime(0, t);
       ganancia.gain.linearRampToValueAtTime(volumenes[index], t + 0.08);
-      // Decaimiento natural prolongado
       ganancia.gain.exponentialRampToValueAtTime(0.001, t + 5.0 / ratio);
 
       oscilador.connect(ganancia);
@@ -118,15 +104,12 @@ class EscenaJardinPrimeraPersona extends xb.Script {
     });
   }
 
-  /**
-   * Sintetiza el tintineo cristalino de campanas de viento impulsadas por la brisa
-   */
   sonarCampanillaViento() {
     this.iniciarAudio();
     if (!this.contextoAudio) return;
 
     const t = this.contextoAudio.currentTime;
-    const frecAleatoria = 850 + Math.random() * 750; // Agudos cristalinos
+    const frecAleatoria = 850 + Math.random() * 750;
     
     const oscilador = this.contextoAudio.createOscillator();
     const ganancia = this.contextoAudio.createGain();
@@ -146,24 +129,25 @@ class EscenaJardinPrimeraPersona extends xb.Script {
   }
 
   /**
-   * Dispara una ráfaga de pétalos concentrados desde la copa de un árbol específico
+   * Genera pétalos de rosa cayendo desde las coordenadas del follaje / esfera seleccionada
    */
   lanzarRafagaPetalosDesdeArbol(posicionArbol) {
     let petalosModificados = 0;
-    const maxPetalosPorRafaga = 15; // Cantidad de pétalos que caen al tocar el árbol
+    const maxPetalosPorRafaga = 25; // Cantidad generosa de pétalos por interacción
 
     for (let i = 0; i < this.petalosSakura.length; i++) {
       const petalo = this.petalosSakura[i];
-      // Si el pétalo ya cayó cerca del suelo o de forma aleatoria, lo relanzamos desde el árbol
-      if (petalo.position.y < 0.4 || Math.random() > 0.6) {
+      
+      // Reutilizamos pétalos inactivos o cercanos al suelo
+      if (petalo.position.y < 0.5 || Math.random() > 0.4) {
         petalo.position.set(
-          posicionArbol.x + (Math.random() * 0.4 - 0.2),
-          posicionArbol.y + 0.3 + (Math.random() * 0.3), // Justo en la copa
-          posicionArbol.z + (Math.random() * 0.4 - 0.2)
+          posicionArbol.x + (Math.random() * 0.8 - 0.4),
+          posicionArbol.y + (Math.random() * 0.4), // Justo en la esfera grande
+          posicionArbol.z + (Math.random() * 0.8 - 0.4)
         );
-        // Le damos un impulso de caída y oscilación más enérgico
-        petalo.userData.velocidadDescenso = 0.5 + Math.random() * 0.5;
-        petalo.userData.frecuenciaViento = 3.0 + Math.random() * 2.0;
+        
+        petalo.userData.velocidadDescenso = 0.5 + Math.random() * 0.7;
+        petalo.userData.frecuenciaViento = 3.5 + Math.random() * 3.0;
 
         petalosModificados++;
         if (petalosModificados >= maxPetalosPorRafaga) break;
@@ -172,7 +156,6 @@ class EscenaJardinPrimeraPersona extends xb.Script {
   }
 
   init() {
-    // 1. ILUMINACIÓN DE DÍA (Sol potente con sombras suaves)
     const luzAmbiente = new THREE.HemisphereLight(0xffffff, 0xbbbbbb, 1.8);
     this.add(luzAmbiente);
 
@@ -183,20 +166,16 @@ class EscenaJardinPrimeraPersona extends xb.Script {
     sol.shadow.mapSize.height = 2048;
     this.add(sol);
 
-    // 2. CREACIÓN DEL CIELO INFINITO Y NUBES PROCEDURALES
     this.construirCieloYClouds();
 
-    // Contenedor principal para organizar la escena
     const escenaGrupo = new THREE.Group();
-    escenaGrupo.position.set(0, 0, -1.5); // Centrado en el espacio XR
+    escenaGrupo.position.set(0, 0, -1.5); 
     this.add(escenaGrupo);
 
-    // 3. CARGADOR DE MODELO .GLB ORIGINAL
+    // Carga de tu archivo original 'low poly zen.glb'
     const loader = new GLTFLoader();
     loader.load('low poly zen.glb', (gltf) => {
       const jardinCargado = gltf.scene;
-      
-      // Escala 1:1 para sentir que puedes explorar tu propio modelado por dentro
       jardinCargado.scale.set(1, 1, 1);
       jardinCargado.position.set(0, 0, 0); 
       
@@ -206,138 +185,102 @@ class EscenaJardinPrimeraPersona extends xb.Script {
           child.receiveShadow = true;
           if (child.material) child.material.side = THREE.DoubleSide;
 
-          // Mapeamos dinámicamente los árboles de tu archivo .glb para que reaccionen al tacto/clic
-          const nombreEnMinuscula = child.name.toLowerCase();
-          if (nombreEnMinuscula.includes('arbol') || nombreEnMinuscula.includes('tree') || nombreEnMinuscula.includes('hojas') || nombreEnMinuscula.includes('hoja')) {
-            // Registramos tu malla del modelo original como un árbol interactivo en el sistema de físicas
-            const envolturaArbol = new THREE.Group();
-            envolturaArbol.userData = {
-              canopy: child,
-              temporizadorSacudida: 0,
-              esArbol: true
-            };
-            this.arbolesInteractivos.push(envolturaArbol);
+          const nombre = child.name.toLowerCase();
+          
+          // Registro de esferas grandes de hojas (UV Spheres, Icospheres y mallas relacionadas con cerezo/hojas)
+          if (
+            nombre.includes('sphere') || 
+            nombre.includes('ico') || 
+            nombre.includes('arbol') || 
+            nombre.includes('tree') || 
+            nombre.includes('hoja') || 
+            nombre.includes('foliage') || 
+            nombre.includes('sakura') || 
+            nombre.includes('copa')
+          ) {
+            this.registrarArbolInteractivo(child, escenaGrupo);
           }
         }
       });
       
       escenaGrupo.add(jardinCargado);
-      console.log("¡Tu modelo 'low poly zen.glb' se ha cargado e integrado al motor interactivo con éxito!");
-
-      // Colocamos el Cuenco Tibetano y Faroles sobre tu modelo cargado
       this.colocarCuencoCampana(escenaGrupo);
     }, undefined, (error) => {
-      console.warn('No se pudo encontrar tu archivo "low poly zen.glb". Cargando entorno procedural de respaldo...', error);
-      // GENERACIÓN PROCEDURAL COMPLETA DEL JARDÍN ZEN (Si falla la carga del .glb)
+      console.warn('No se detectó el GLB. Cargando entorno de respaldo...', error);
       this.crearEntornoProcedural(escenaGrupo);
     });
 
-    // 4. Sistema interactivo de hojas de Sakura cayendo en el espacio
-    this.inicializarParticulasSakura();
-
-    // 5. Panel Espacial Interactivo en Español
+    this.inicializarParticulesSakura();
     this.crearPanelInterfaz();
-
-    // Añade punteros visuales de interacción en mandos/manos
     xb.core.input.addReticles();
   }
 
   /**
-   * Construye un domo con un degradado de cielo realista y nubes low-poly flotantes
+   * Registra las esferas (UV Spheres / canopies) del modelo para que reaccionen a las interacciones
    */
-  construirCieloYClouds() {
-    // Domo de cielo gigante
-    const skyGeo = new THREE.SphereGeometry(45, 32, 15);
+  registrarArbolInteractivo(mesh, grupoPadre) {
+    if (mesh.userData.registrado) return;
+    mesh.userData.registrado = true;
+
+    // Vinculamos la esfera para aplicar el efecto físico de movimiento y el emisor de hojas
+    const infoArbol = {
+      objetoMalla: mesh,
+      temporizadorSacudida: 0,
+      esArbol: true
+    };
     
-    // Creamos una textura de degradado dinámico (celeste de zenit a blanco en el horizonte)
+    this.arbolesInteractivos.push(infoArbol);
+  }
+
+  construirCieloYClouds() {
+    const skyGeo = new THREE.SphereGeometry(45, 32, 15);
     const canvas = document.createElement('canvas');
     canvas.width = 2;
     canvas.height = 512;
     const context = canvas.getContext('2d');
     const gradient = context.createLinearGradient(0, 0, 0, 512);
-    gradient.addColorStop(0, '#53a1e6');   // Celeste intenso arriba
-    gradient.addColorStop(0.55, '#8cc3f2'); // Celeste suave
-    gradient.addColorStop(1, '#e3f2fd');   // Blanco azulado en el horizonte
+    gradient.addColorStop(0, '#53a1e6');   
+    gradient.addColorStop(0.55, '#8cc3f2'); 
+    gradient.addColorStop(1, '#e3f2fd');   
     context.fillStyle = gradient;
     context.fillRect(0, 0, 2, 512);
     
     const skyTexture = new THREE.CanvasTexture(canvas);
-    const skyMat = new THREE.MeshBasicMaterial({
-      map: skyTexture,
-      side: THREE.BackSide,
-      depthWrite: false
-    });
-    
+    const skyMat = new THREE.MeshBasicMaterial({ map: skyTexture, side: THREE.BackSide, depthWrite: false });
     const skyDome = new THREE.Mesh(skyGeo, skyMat);
     this.add(skyDome);
 
-    // Generador de nubes low-poly (Esferas flotantes agrupadas)
-    const materialNube = new THREE.MeshLambertMaterial({
-      color: 0xffffff,
-      flatShading: true,
-      transparent: true,
-      opacity: 0.9
-    });
-
+    const materialNube = new THREE.MeshLambertMaterial({ color: 0xffffff, flatShading: true, transparent: true, opacity: 0.9 });
     const crearNubeSingular = (posX, posY, posZ, escala) => {
       const grupoNube = new THREE.Group();
       grupoNube.position.set(posX, posY, posZ);
-
-      // Usamos geometrías Dodecaedro para ese look facetado 'low poly' zen de tu referencia
       const geoParte = new THREE.DodecahedronGeometry(0.8 * escala, 1);
+      
+      const p1 = new THREE.Mesh(geoParte, materialNube); grupoNube.add(p1);
+      const p2 = new THREE.Mesh(geoParte, materialNube); p2.position.set(-0.6 * escala, -0.2 * escala, 0.1 * escala); p2.scale.setScalar(0.75); grupoNube.add(p2);
+      const p3 = new THREE.Mesh(geoParte, materialNube); p3.position.set(0.6 * escala, -0.15 * escala, -0.1 * escala); p3.scale.setScalar(0.8); grupoNube.add(p3);
 
-      // Creamos un cúmulo de 3 esferas para formar la nube
-      const p1 = new THREE.Mesh(geoParte, materialNube);
-      p1.position.set(0, 0, 0);
-      grupoNube.add(p1);
-
-      const p2 = new THREE.Mesh(geoParte, materialNube);
-      p2.position.set(-0.6 * escala, -0.2 * escala, 0.1 * escala);
-      p2.scale.setScalar(0.75);
-      grupoNube.add(p2);
-
-      const p3 = new THREE.Mesh(geoParte, materialNube);
-      p3.position.set(0.6 * escala, -0.15 * escala, -0.1 * escala);
-      p3.scale.setScalar(0.8);
-      grupoNube.add(p3);
-
-      grupoNube.userData = {
-        velocidadDeriva: 0.1 + Math.random() * 0.25, // Velocidad de movimiento sutil
-        limiteX: 30
-      };
-
+      grupoNube.userData = { velocidadDeriva: 0.1 + Math.random() * 0.25, limiteX: 30 };
       this.nubesFirmamento.push(grupoNube);
       this.add(grupoNube);
     };
 
-    // Distribuimos 8 nubes esponjosas en distintas alturas y distancias del firmamento
     crearNubeSingular(-12, 10, -15, 2.5);
     crearNubeSingular(14, 14, -10, 3.2);
     crearNubeSingular(-2, 11, -22, 2.0);
     crearNubeSingular(20, 9, -5, 2.8);
-    crearNubeSingular(-18, 13, 10, 3.0);
-    crearNubeSingular(5, 12, 15, 2.3);
-    crearNubeSingular(-22, 8, -5, 1.8);
-    crearNubeSingular(10, 10, -25, 2.6);
   }
 
-  /**
-   * Crea un espectacular jardín zen procedural de respaldo (si no se encuentra el .glb)
-   */
   crearEntornoProcedural(grupo) {
-    // Isla Base Verde (Banqueta de jardín y río central)
     const terrenoGeo = new THREE.BoxGeometry(3.5, 0.4, 3.5, 8, 1, 8);
     const pos = terrenoGeo.attributes.position;
     for (let i = 0; i < pos.count; i++) {
       let y = pos.getY(i);
-      if (y > 0) { // Deformación suave de la superficie para estilo Low-Poly
+      if (y > 0) {
         const x = pos.getX(i);
         const z = pos.getZ(i);
         let alteracion = Math.sin(x * 1.2) * 0.15 + Math.cos(z * 1.1) * 0.1;
-        // Canal del río
-        if (Math.abs(z) < 0.45) {
-          alteracion = -0.18 + (Math.random() * 0.02);
-        }
+        if (Math.abs(z) < 0.45) alteracion = -0.18 + (Math.random() * 0.02);
         pos.setY(i, y + alteracion);
       }
     }
@@ -345,301 +288,67 @@ class EscenaJardinPrimeraPersona extends xb.Script {
 
     const terrenoMat = new THREE.MeshLambertMaterial({ color: 0x76a060, flatShading: true });
     const terreno = new THREE.Mesh(terrenoGeo, terrenoMat);
-    terreno.receiveShadow = true;
-    terreno.castShadow = true;
+    terreno.receiveShadow = true; terreno.castShadow = true;
     grupo.add(terreno);
 
-    // Suelo inferior de tierra
-    const tierraGeo = new THREE.BoxGeometry(3.5, 0.5, 3.5);
-    const tierraMat = new THREE.MeshLambertMaterial({ color: 0x473225, flatShading: true });
-    const tierra = new THREE.Mesh(tierraGeo, tierraMat);
-    tierra.position.y = -0.42;
-    grupo.add(tierra);
-
-    // Río Relajante
     const aguaGeo = new THREE.PlaneGeometry(3.48, 0.85);
-    const aguaMat = new THREE.MeshPhysicalMaterial({
-      color: 0x3d7b85,
-      transparent: true,
-      opacity: 0.8,
-      roughness: 0.15,
-      flatShading: true
-    });
+    const aguaMat = new THREE.MeshPhysicalMaterial({ color: 0x3d7b85, transparent: true, opacity: 0.8, roughness: 0.15, flatShading: true });
     const rio = new THREE.Mesh(aguaGeo, aguaMat);
-    rio.rotation.x = -Math.PI / 2;
-    rio.position.set(0, 0.03, 0);
+    rio.rotation.x = -Math.PI / 2; rio.position.set(0, 0.03, 0);
     grupo.add(rio);
 
-    // PUENTE ROJO TRADICIONAL
-    this.construirPuenteRojo(grupo);
-
-    // PUERTA TORII SHINTO
-    this.construirPuertaTorii(grupo);
-
-    // CASA DE TÉ / PAVELLÓN JAPONÉS
-    this.construirCasaDeTe(grupo);
-
-    // ÁRBOLES DE SAKURA (Pinchables para agitar flores)
     this.plantarFloraInteractiva(grupo);
-
-    // LINTERNAS DE PIEDRA E ILUMINACIÓN DE FAROL
-    this.colocarDecoracionesYFaroles(grupo);
-
-    // CUENCO TIBETANO / CAMPANA ZEN INTERACTIVA
     this.colocarCuencoCampana(grupo);
-  }
-
-  construirPuenteRojo(grupo) {
-    const puente = new THREE.Group();
-    puente.position.set(0, 0.08, 0); // Cruza justo sobre el río central
-
-    const maderaMat = new THREE.MeshLambertMaterial({ color: 0x8a2313, flatShading: true });
-    const pasamanosMat = new THREE.MeshLambertMaterial({ color: 0xb52210, flatShading: true });
-
-    const baseGeo = new THREE.BoxGeometry(0.5, 0.03, 1.0);
-    const base = new THREE.Mesh(baseGeo, maderaMat);
-    puente.add(base);
-
-    // Peldaños arqueados
-    const peldanoGeo = new THREE.BoxGeometry(0.55, 0.02, 0.1);
-    for (let i = -4; i <= 4; i++) {
-      const peldano = new THREE.Mesh(peldanoGeo, maderaMat);
-      const zVal = i * 0.11;
-      const yVal = 0.04 - Math.pow(zVal, 2) * 0.28;
-      peldano.position.set(0, yVal, zVal);
-      puente.add(peldano);
-    }
-
-    // Barandillas laterales
-    const barandillaGeo = new THREE.BoxGeometry(0.02, 0.02, 1.04);
-    const izqBar = new THREE.Mesh(barandillaGeo, pasamanosMat);
-    izqBar.position.set(-0.26, 0.14, 0);
-    puente.add(izqBar);
-
-    const derBar = new THREE.Mesh(barandillaGeo, pasamanosMat);
-    derBar.position.set(0.26, 0.14, 0);
-    puente.add(derBar);
-
-    grupo.add(puente);
-  }
-
-  construirPuertaTorii(grupo) {
-    const torii = new THREE.Group();
-    torii.position.set(0.9, 0.1, 0.8);
-    torii.rotation.y = -Math.PI / 4;
-
-    const rojoTorii = new THREE.MeshLambertMaterial({ color: 0xc42e18, flatShading: true });
-    const negroDetalle = new THREE.MeshLambertMaterial({ color: 0x1c1a1a, flatShading: true });
-
-    const columnasGeo = new THREE.CylinderGeometry(0.035, 0.04, 0.75, 6);
-    
-    const columnaIzq = new THREE.Mesh(columnasGeo, rojoTorii);
-    columnaIzq.position.set(-0.28, 0.375, 0);
-    torii.add(columnaIzq);
-
-    const columnaDer = new THREE.Mesh(columnasGeo, rojoTorii);
-    columnaDer.position.set(0.28, 0.375, 0);
-    torii.add(columnaDer);
-
-    // Viga superior curva
-    const travesanoGeo = new THREE.BoxGeometry(0.85, 0.04, 0.04);
-    const travesano = new THREE.Mesh(travesanoGeo, rojoTorii);
-    travesano.position.set(0, 0.72, 0);
-    torii.add(travesano);
-
-    const remateNegro = new THREE.BoxGeometry(0.88, 0.015, 0.05);
-    const remate = new THREE.Mesh(remateNegro, negroDetalle);
-    remate.position.set(0, 0.745, 0);
-    torii.add(remate);
-
-    grupo.add(torii);
-  }
-
-  construirCasaDeTe(grupo) {
-    const casa = new THREE.Group();
-    casa.position.set(-1.0, 0.15, -1.1);
-
-    const sueloGeo = new THREE.BoxGeometry(0.8, 0.06, 0.8);
-    const maderaOscura = new THREE.MeshLambertMaterial({ color: 0x3d312a, flatShading: true });
-    const suelo = new THREE.Mesh(sueloGeo, maderaOscura);
-    casa.add(suelo);
-
-    // Paredes de papel blanco Shoji
-    const shojiGeo = new THREE.BoxGeometry(0.6, 0.45, 0.6);
-    const shojiMat = new THREE.MeshLambertMaterial({ color: 0xfcedde });
-    const paredes = new THREE.Mesh(shojiGeo, shojiMat);
-    paredes.position.y = 0.25;
-    casa.add(paredes);
-
-    // Techo estilo pagoda
-    const techoGeo = new THREE.ConeGeometry(0.65, 0.28, 4);
-    const techoMat = new THREE.MeshLambertMaterial({ color: 0x2f3b37, flatShading: true });
-    const techo = new THREE.Mesh(techoGeo, techoMat);
-    techo.position.y = 0.58;
-    techo.rotation.y = Math.PI / 4;
-    casa.add(techo);
-
-    grupo.add(casa);
   }
 
   plantarFloraInteractiva(grupo) {
     const troncoMat = new THREE.MeshLambertMaterial({ color: 0x54473d, flatShading: true });
     const rosaSuave = new THREE.MeshLambertMaterial({ color: 0xfca1b5, flatShading: true });
-    const rosaIntenso = new THREE.MeshLambertMaterial({ color: 0xf57fa0, flatShading: true });
 
     const plantarSakura = (x, y, z, escala = 1.0) => {
       const arbol = new THREE.Group();
       arbol.position.set(x, y, z);
       arbol.scale.setScalar(escala);
 
-      // Tronco retorcido Low-Poly
-      const troncoGeo = new THREE.CylinderGeometry(0.04, 0.06, 0.4, 5);
-      const tronco = new THREE.Mesh(troncoGeo, troncoMat);
+      const tronco = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.06, 0.4, 5), troncoMat);
       tronco.position.y = 0.2;
       arbol.add(tronco);
 
-      const ramaGeo = new THREE.CylinderGeometry(0.02, 0.03, 0.3, 4);
-      const rama = new THREE.Mesh(ramaGeo, troncoMat);
-      rama.position.set(0.05, 0.4, 0);
-      rama.rotation.z = -0.2;
-      arbol.add(rama);
-
-      // Follaje de flores
-      const copa = new THREE.Group();
-      copa.position.set(0.05, 0.55, 0);
-
-      const esferaBlossom = new THREE.DodecahedronGeometry(0.24, 1);
-      
-      const c1 = new THREE.Mesh(esferaBlossom, rosaSuave);
-      c1.position.set(0, 0.1, 0);
-      copa.add(c1);
-
-      const c2 = new THREE.Mesh(esferaBlossom, rosaIntenso);
-      c2.position.set(-0.15, -0.05, 0.1);
-      copa.add(c2);
-
-      const c3 = new THREE.Mesh(esferaBlossom, rosaSuave);
-      c3.position.set(0.16, -0.05, -0.1);
-      copa.add(c3);
-
+      const copa = new THREE.Mesh(new THREE.DodecahedronGeometry(0.28, 1), rosaSuave);
+      copa.position.set(0, 0.5, 0);
       arbol.add(copa);
 
-      arbol.userData = { 
-        canopy: copa, 
-        temporizadorSacudida: 0,
-        esArbol: true 
-      };
-      
-      this.arbolesInteractivos.push(arbol);
       grupo.add(arbol);
+      this.registrarArbolInteractivo(copa, grupo);
     };
 
-    // Plantamos 3 hermosos árboles de Sakura alrededor del lago
     plantarSakura(-1.1, 0.15, -0.2, 1.2);
     plantarSakura(1.0, 0.15, -1.0, 1.4);
-    plantarSakura(-0.4, 0.15, -1.3, 1.0);
-  }
-
-  colocarDecoracionesYFaroles(grupo) {
-    const piedraMat = new THREE.MeshLambertMaterial({ color: 0x909090, flatShading: true });
-
-    const colocarPiedra = (x, y, z, s = 1.0) => {
-      const piedraGeo = new THREE.DodecahedronGeometry(0.12, 0);
-      const piedra = new THREE.Mesh(piedraGeo, piedraMat);
-      piedra.position.set(x, y, z);
-      piedra.scale.set(s, s * 0.8, s);
-      piedra.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, 0);
-      grupo.add(piedra);
-    };
-
-    colocarPiedra(-0.4, 0.08, -0.5, 1.3);
-    colocarPiedra(0.4, 0.08, -0.6, 1.2);
-    colocarPiedra(0.8, 0.15, 0.2, 1.5);
-
-    // Farol Linterna Tōrō
-    const colocarFarol = (x, y, z) => {
-      const farol = new THREE.Group();
-      farol.position.set(x, y, z);
-
-      const baseFarol = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, 0.08, 5), piedraMat);
-      baseFarol.position.y = 0.04;
-      farol.add(baseFarol);
-
-      const posteFarol = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.25, 5), piedraMat);
-      posteFarol.position.y = 0.2;
-      farol.add(posteFarol);
-
-      const cajaLuz = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.08, 4), new THREE.MeshBasicMaterial({ color: 0xffa726 }));
-      cajaLuz.position.y = 0.35;
-      farol.add(cajaLuz);
-
-      const gorroFarol = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.06, 5), piedraMat);
-      gorroFarol.position.y = 0.41;
-      farol.add(gorroFarol);
-
-      const luzFocal = new THREE.PointLight(0xffa726, 1.2, 1.5);
-      luzFocal.position.set(0, 0.35, 0);
-      farol.add(luzFocal);
-
-      grupo.add(farol);
-    };
-
-    colocarFarol(-0.7, 0.15, -0.8);
-    colocarFarol(0.7, 0.15, 0.5);
   }
 
   colocarCuencoCampana(grupo) {
     const campanaSoporte = new THREE.Group();
-    // Posicionamiento ideal frente al jugador
     campanaSoporte.position.set(0.35, 1.1, -0.6);
 
     const maderaPilar = new THREE.MeshLambertMaterial({ color: 0x4a3225, flatShading: true });
-    const metalCampana = new THREE.MeshStandardMaterial({ 
-      color: 0xcca152, // Bronce pulido
-      roughness: 0.2,
-      metalness: 0.9
-    });
+    const metalCampana = new THREE.MeshStandardMaterial({ color: 0xcca152, roughness: 0.2, metalness: 0.9 });
 
-    const posteZ = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.4, 5), maderaPilar);
-    posteZ.position.set(-0.15, 0.2, 0);
-    campanaSoporte.add(posteZ);
+    const posteZ = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.4, 5), maderaPilar); posteZ.position.set(-0.15, 0.2, 0); campanaSoporte.add(posteZ);
+    const posteD = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.4, 5), maderaPilar); posteD.position.set(0.15, 0.2, 0); campanaSoporte.add(posteD);
+    const viga = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.03, 0.03), maderaPilar); viga.position.set(0, 0.4, 0); campanaSoporte.add(viga);
 
-    const posteD = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.4, 5), maderaPilar);
-    posteD.position.set(0.15, 0.2, 0);
-    campanaSoporte.add(posteD);
-
-    const viga = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.03, 0.03), maderaPilar);
-    viga.position.set(0, 0.4, 0);
-    campanaSoporte.add(viga);
-
-    // El Cuenco Tibetano colgante interactivo
     const campana = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.075, 0.12, 8), metalCampana);
     campana.position.set(0, 0.28, 0);
-    campana.castShadow = true;
     campanaSoporte.add(campana);
 
     campana.userData = { esCampana: true };
     this.objetoCampana = campana;
-
-    // Etiqueta flotante tridimensional sobre el cuenco
-    const letrero = new xb.TextView({
-      text: "Cuenco Tibetano Zen\n(Golpea o presiona)",
-      fontSize: 0.018,
-      fontColor: "#ffffff",
-    });
-    letrero.position.set(0, 0.5, 0);
-    campanaSoporte.add(letrero);
-
     grupo.add(campanaSoporte);
   }
 
-  inicializarParticulasSakura() {
-    const cantidad = 50;
-    const petaloMat = new THREE.MeshBasicMaterial({
-      color: 0xffa6c9, // Pétalo rosado Sakura
-      side: THREE.DoubleSide
-    });
-
+  inicializarParticulesSakura() {
+    const cantidad = 65;
+    const petaloMat = new THREE.MeshBasicMaterial({ color: 0xffa6c9, side: THREE.DoubleSide });
     const petaloGeo = new THREE.PlaneGeometry(0.02, 0.012);
 
     for (let i = 0; i < cantidad; i++) {
@@ -651,17 +360,8 @@ class EscenaJardinPrimeraPersona extends xb.Script {
   }
 
   reubicarPetalo(petalo) {
-    // Los posiciona sobre el follaje de los árboles de manera natural
-    petalo.position.set(
-      (Math.random() * 2.4) - 1.2,
-      1.3 + (Math.random() * 0.7),
-      -2.0 + (Math.random() * 1.6)
-    );
-    petalo.rotation.set(
-      Math.random() * Math.PI,
-      Math.random() * Math.PI,
-      0
-    );
+    petalo.position.set((Math.random() * 3.0) - 1.5, 1.4 + (Math.random() * 0.8), -2.5 + (Math.random() * 2.0));
+    petalo.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, 0);
     petalo.userData = {
       velocidadDescenso: 0.25 + Math.random() * 0.4,
       frecuenciaViento: 1 + Math.random() * 2,
@@ -672,126 +372,64 @@ class EscenaJardinPrimeraPersona extends xb.Script {
   }
 
   crearPanelInterfaz() {
-    this.panelControl = new xb.SpatialPanel({
-      width: 1.1,
-      height: 1.25,
-      backgroundColor: '#1c1e1cbb',
-    });
-    // Colocado lateralmente para no tapar la vista del río
+    this.panelControl = new xb.SpatialPanel({ width: 1.1, height: 1.25, backgroundColor: '#1c1e1cbb' });
     this.panelControl.position.set(-1.4, 1.4, -1.5);
     this.panelControl.rotation.y = Math.PI / 5;
     this.add(this.panelControl);
 
     const cuadricula = this.panelControl.addGrid();
+    cuadricula.addRow({weight: 0.2}).addText({ text: 'Jardín Zen Interactivo', fontColor: '#ffcc80', fontSize: 0.08 });
+    cuadricula.addRow({weight: 0.2}).addText({ text: 'Apunta a las esferas de hojas con el control XR y pulsa el gatillo para hacer caer pétalos.', fontColor: '#ffffff', fontSize: 0.035 });
 
-    // Título Principal
-    cuadricula.addRow({weight: 0.2}).addText({
-      text: 'Sendero de Meditación',
-      fontColor: '#ffcc80',
-      fontSize: 0.08,
-    });
-
-    // Subtítulo descriptivo
-    cuadricula.addRow({weight: 0.2}).addText({
-      text: 'Respira hondo. Disfruta de la calma, el viento suave y el fluir del agua.',
-      fontColor: '#ffffff',
-      fontSize: 0.035,
-    });
-
-    // Control de Campanas de Viento
-    const filaCampana = cuadricula.addRow({weight: 0.2});
-    filaCampana.addCol({weight: 0.6}).addText({
-      text: 'Brisa con Campanas',
-      fontColor: '#ffffff',
-      fontSize: 0.045,
-      anchorX: 'left',
-    });
-
-    const botonChime = filaCampana.addCol({weight: 0.4}).addTextButton({
-      text: 'ACTIVAR',
-      fontColor: '#ffffff',
-      backgroundColor: '#2e7d32',
-      fontSize: 0.15,
-    });
-
-    botonChime.onTriggered = () => {
-      this.campanasVientoActivas = !this.campanasVientoActivas;
-      botonChime.setText(this.campanasVientoActivas ? 'DESACTIVAR' : 'ACTIVAR');
-      botonChime.setBackgroundColor(this.campanasVientoActivas ? '#c62828' : '#2e7d32');
-      this.iniciarAudio();
-      if (this.campanasVientoActivas) {
-        this.sonarCampanillaViento();
-      }
-    };
-
-    // Botón para Ráfaga de Viento (Agita los cerezos)
-    const filaViento = cuadricula.addRow({weight: 0.2});
-    const botonViento = filaViento.addCol({weight: 1.0}).addTextButton({
-      text: '🍃 Ráfaga de Viento Sakura',
-      fontColor: '#ffffff',
-      backgroundColor: '#1565c0',
-      fontSize: 0.16,
-    });
-
+    const filaViento = cuadricula.addRow({weight: 0.3});
+    const botonViento = filaViento.addCol({weight: 1.0}).addTextButton({ text: '🍃 Tormenta Sakura Global', fontColor: '#ffffff', backgroundColor: '#1565c0', fontSize: 0.14 });
+    
     botonViento.onTriggered = () => {
       this.arbolesInteractivos.forEach(arbol => {
-        arbol.userData.temporizadorSacudida = 1.6;
-        const posicionMundial = new THREE.Vector3();
-        arbol.userData.canopy.getWorldPosition(posicionMundial);
-        this.lanzarRafagaPetalosDesdeArbol(posicionMundial);
+        arbol.temporizadorSacudida = 1.8;
+        const posMundial = new THREE.Vector3();
+        arbol.objetoMalla.getWorldPosition(posMundial);
+        this.lanzarRafagaPetalosDesdeArbol(posMundial);
       });
-      this.velocidadPetalos = 2.0;
-      setTimeout(() => { this.velocidadPetalos = 0.6; }, 3500);
-      
-      this.iniciarAudio();
       this.sonarCampanillaViento();
     };
-
-    // Tip de interacción
-    cuadricula.addRow({weight: 0.2}).addText({
-      text: '💡 Tip: Toca las hojas de los árboles para hacer caer pétalos o golpea el cuenco tibetano.',
-      fontColor: '#ffe082',
-      fontSize: 0.028,
-    });
   }
 
   /**
-   * Controlador universal de clics/selecciones en el espacio XR
+   * Capturador de Gatillo Universal (Mandos XR, Manos y Clic de Mouse)
    */
   onSelectStart(event) {
-    const control = event.target;
+    this.iniciarAudio();
+    const mandoControlador = event.target;
     
-    // Verificación de clic/interacción con los Cerezos (Lanza ráfaga de pétalos localizados)
+    // Evaluamos interacciones con las esferas de hojas (UV Spheres) detectadas en la escena
     this.arbolesInteractivos.forEach(arbol => {
-      const interseccion = xb.core.user.select(arbol.userData.canopy, control);
-      if (interseccion) {
-        arbol.userData.temporizadorSacudida = 1.0;
+      const golpeado = xb.core.user.select(arbol.objetoMalla, mandoControlador);
+      
+      if (golpeado) {
+        // Sacudida física elástica
+        arbol.temporizadorSacudida = 1.5; 
         
-        // Obtenemos la posición absoluta de la copa de este árbol interactuado
+        // Posición tridimensional exacta de la esfera de hojas
         const posicionMundial = new THREE.Vector3();
-        arbol.userData.canopy.getWorldPosition(posicionMundial);
+        arbol.objetoMalla.getWorldPosition(posicionMundial);
         
-        // Disparamos la ráfaga de pétalos desde su posición
+        // Ráfaga concentrada de pétalos Sakura desde esa esfera
         this.lanzarRafagaPetalosDesdeArbol(posicionMundial);
-
-        this.iniciarAudio();
+        
+        // Feedback auditivo zen
         this.sonarCampanillaViento();
       }
     });
 
-    // Verificación de clic/toque con el Cuenco Tibetano
+    // Interacción secundaria con el Cuenco Tibetano
     if (this.objetoCampana) {
-      const golpeo = xb.core.user.select(this.objetoCampana, control);
-      if (golpeo && !this.bloqueoCampana) {
+      const golpeCuenco = xb.core.user.select(this.objetoCampana, mandoControlador);
+      if (golpeCuenco && !this.bloqueoCampana) {
         this.bloqueoCampana = true;
         this.sonarCampanaZen();
-        
-        // Simulación visual de oscilación por el golpe
-        this.objetoCampana.position.x += 0.025;
-        setTimeout(() => {
-          this.objetoCampana.position.x = 0;
-          this.bloqueoCampana = false;
-        }, 1500);
+        this.objetoCampana.position.x += 0.03;
+        setTimeout(() => { this.objetoCampana.position.x = 0; this.bloqueoCampana = false; }, 1200);
       }
     }
   }
@@ -799,69 +437,60 @@ class EscenaJardinPrimeraPersona extends xb.Script {
   update() {
     const dt = xb.getDeltaTime();
 
-    // 1. Animación y física de caída de pétalos de Sakura
+    // 1. Render de caída y balanceo de los pétalos de Sakura
     this.petalosSakura.forEach(petalo => {
       const datos = petalo.userData;
-      
       petalo.position.y -= datos.velocidadDescenso * this.velocidadPetalos * dt;
-      
-      // Balanceo sinusoidal por acción de la brisa
       datos.faseFisica += dt * datos.frecuenciaViento;
-      petalo.position.x += Math.sin(datos.faseFisica) * 0.002;
+      petalo.position.x += Math.sin(datos.faseFisica) * 0.003;
 
-      // Rotación aleatoria en el aire
       petalo.rotation.x += datos.giroX * dt;
       petalo.rotation.y += datos.giroY * dt;
 
-      // Reinicio al tocar el suelo
-      if (petalo.position.y < 0.12) {
+      if (petalo.position.y < 0.1) {
         this.reubicarPetalo(petalo);
       }
     });
 
-    // 2. Animación elástica de sacudida en las copas de los árboles
+    // 2. Animación física amortiguada de sacudida en las esferas grandes de hojas
     this.arbolesInteractivos.forEach(arbol => {
-      if (arbol.userData.temporizadorSacudida > 0) {
-        arbol.userData.temporizadorSacudida -= dt;
-        const anguloOscilacion = Math.sin(arbol.userData.temporizadorSacudida * 16) * 0.035;
-        arbol.userData.canopy.rotation.z = anguloOscilacion;
+      if (arbol.temporizadorSacudida > 0) {
+        arbol.temporizadorSacudida -= dt;
+        
+        // Oscilación elástica decreciente sutil para simular el impacto en las hojas tridimensionales
+        const fuerzaAmortiguada = arbol.temporizadorSacudida / 1.5;
+        const desfaseMovimiento = Math.sin(arbol.temporizadorSacudida * 18.0) * 0.07 * fuerzaAmortiguada;
+        
+        // Aplicamos flexión rotacional local directamente en la esfera de hojas
+        arbol.objetoMalla.rotation.z = desfaseMovimiento;
+        arbol.objetoMalla.rotation.x = desfaseMovimiento * 0.4;
+        arbol.objetoMalla.scale.setScalar(1.0 + Math.sin(arbol.temporizadorSacudida * 20.0) * 0.03 * fuerzaAmortiguada);
       } else {
-        arbol.userData.canopy.rotation.z = 0;
+        // Reposo absoluto de la esfera
+        arbol.objetoMalla.rotation.z = 0;
+        arbol.objetoMalla.rotation.x = 0;
+        arbol.objetoMalla.scale.setScalar(1.0);
       }
     });
 
-    // 3. Sistema automático de campanas de viento en segundo plano
-    if (this.campanasVientoActivas) {
-      this.temporizadorCampana += dt;
-      if (this.temporizadorCampana > (3.0 + Math.random() * 3.0)) {
-        this.sonarCampanillaViento();
-        this.temporizadorCampana = 0;
-      }
-    }
-
-    // 4. Animación de deriva lenta de las nubes en el firmamento
+    // 3. Movimiento de nubes
     this.nubesFirmamento.forEach(nube => {
       nube.position.x += nube.userData.velocidadDeriva * dt;
-      // Reinicia su posición en el extremo opuesto cuando sale del campo de visión (bucle infinito)
-      if (nube.position.x > nube.userData.limiteX) {
-        nube.position.x = -nube.userData.limiteX;
-      }
+      if (nube.position.x > nube.userData.limiteX) nube.position.x = -nube.userData.limiteX;
     });
   }
 }
 
-// Inicialización de la experiencia en primera persona
 document.addEventListener('DOMContentLoaded', function () {
   const opciones = new xb.Options();
   opciones.enableUI();
   opciones.setAppTitle('Jardín Zen: Refugio de Paz');
-  opciones.enableHands(); // Soporte para gestos de manos interactivos
-  opciones.enableWebXrSimulator = true; // Habilita el simulador de primera persona en computadora
+  opciones.enableHands(); 
+  opciones.enableWebXrSimulator = true; 
 
   xb.add(new EscenaJardinPrimeraPersona());
   xb.init(opciones);
 });
-
 </script>
   </body>
 </html>
