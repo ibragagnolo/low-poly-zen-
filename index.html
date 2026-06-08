@@ -8,9 +8,7 @@
       content="width=device-width, initial-scale=1.0, user-scalable=no"
     />
     <link type="text/css" rel="stylesheet" href="https://xrblocks.github.io/css/xr.css" />
-    <script>
-      window.litDisableBundleWarning = true;
-    </script>
+    <script>window.litDisableBundleWarning = true;</script>
     <script type="importmap">
       {
         "imports": {
@@ -22,100 +20,71 @@
         }
       }
     </script>
-    <style>
-      body { margin: 0; background-color: #b3e5fc; overflow: hidden; }
-    </style>
+    <style>body { margin: 0; background-color: #b3e5fc; overflow: hidden; }</style>
   </head>
-
   <body>
     <script type="module">
-import 'xrblocks/addons/simulator/SimulatorAddons.js';
-import * as THREE from 'three';
-import * as xb from 'xrblocks';
+      import 'xrblocks/addons/simulator/SimulatorAddons.js';
+      import * as THREE from 'three';
+      import * as xb from 'xrblocks';
 
-class EscenaJardinZen extends xb.Script {
-  constructor() {
-    super();
-    this.petalosSakura = [];
-    this.arbolesInteractivos = []; 
-    this.objetoBong = null;
-    this.bloqueoInteraccion = false;
-  }
+      class EscenaJardinBong extends xb.Script {
+        constructor() {
+          super();
+          this.objetoBong = null;
+        }
 
-  init() {
-    this.add(new THREE.HemisphereLight(0xffffff, 0xbbbbbb, 1.5));
-    const sol = new THREE.DirectionalLight(0xffffff, 2.0);
-    sol.position.set(10, 20, 10);
-    this.add(sol);
+        init() {
+          this.add(new THREE.HemisphereLight(0xffffff, 0xbbbbbb, 1.5));
+          const sol = new THREE.DirectionalLight(0xffffff, 2.0);
+          sol.position.set(10, 20, 10);
+          this.add(sol);
 
-    const escenaGrupo = new THREE.Group();
-    escenaGrupo.position.set(0, 0, -1.5); 
-    this.add(escenaGrupo);
+          const escenaGrupo = new THREE.Group();
+          escenaGrupo.position.set(0, 0, -1.5);
+          this.add(escenaGrupo);
 
-    this.crearEntorno(escenaGrupo);
-    this.crearBong(escenaGrupo);
-    xb.core.input.addReticles();
-  }
+          this.crearBong(escenaGrupo);
+          xb.core.input.addReticles();
+        }
 
-  crearEntorno(grupo) {
-    const terreno = new THREE.Mesh(new THREE.BoxGeometry(3, 0.2, 3), new THREE.MeshLambertMaterial({ color: 0x558b2f }));
-    grupo.add(terreno);
-  }
+        crearBong(grupo) {
+          const matVidrio = new THREE.MeshPhysicalMaterial({ color: 0x88ccff, transparent: true, opacity: 0.6, metalness: 0.1, roughness: 0.1 });
+          
+          const base = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.15, 0.2, 16), matVidrio);
+          base.position.set(0, 0.1, 0);
+          
+          const cuello = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, 0.4, 16), matVidrio);
+          cuello.position.set(0, 0.4, 0);
+          
+          const tuboLateral = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.15, 8), matVidrio);
+          tuboLateral.rotation.z = Math.PI / 4;
+          tuboLateral.position.set(0.1, 0.25, 0);
 
-  crearBong(grupo) {
-    const matVidrio = new THREE.MeshPhysicalMaterial({ 
-      color: 0x88ccff, 
-      transparent: true, 
-      opacity: 0.7, 
-      metalness: 0.1, 
-      roughness: 0.1,
-      side: THREE.DoubleSide 
-    });
-    
-    // Geometría del bong estilizado
-    const base = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.12, 0.15, 16), matVidrio);
-    base.position.set(0, 0.075, 0);
-    
-    const cuello = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.04, 0.35, 16), matVidrio);
-    cuello.position.set(0, 0.35, 0);
-    
-    const tuboLateral = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.12, 8), matVidrio);
-    tuboLateral.rotation.z = Math.PI / 3;
-    tuboLateral.position.set(0.08, 0.2, 0);
+          this.objetoBong = new THREE.Group();
+          this.objetoBong.add(base);
+          this.objetoBong.add(cuello);
+          this.objetoBong.add(tuboLateral);
+          this.objetoBong.userData = { esBong: true };
+          
+          grupo.add(this.objetoBong);
+        }
 
-    this.objetoBong = new THREE.Group();
-    this.objetoBong.add(base);
-    this.objetoBong.add(cuello);
-    this.objetoBong.add(tuboLateral);
-    this.objetoBong.position.set(0, 0.1, 0);
-    this.objetoBong.userData = { esObjetoZen: true };
-    
-    grupo.add(this.objetoBong);
-  }
-
-  onSelectStart(event) {
-    const controlador = event.target;
-    if (this.objetoBong && xb.core.user.select(this.objetoBong, controlador)) {
-      if (!this.bloqueoInteraccion) {
-        this.bloqueoInteraccion = true;
-        // Animación de feedback
-        this.objetoBong.rotation.z = 0.3;
-        setTimeout(() => { 
-          this.objetoBong.rotation.z = 0; 
-          this.bloqueoInteraccion = false;
-        }, 300);
+        onSelectStart(event) {
+          if (this.objetoBong && xb.core.user.select(this.objetoBong, event.target)) {
+            // Efecto de feedback visual al tocar el objeto
+            this.objetoBong.rotation.z = 0.2;
+            setTimeout(() => { this.objetoBong.rotation.z = 0; }, 200);
+          }
+        }
       }
-    }
-  }
-}
 
-document.addEventListener('DOMContentLoaded', () => {
-  const opciones = new xb.Options();
-  opciones.enableUI();
-  opciones.setAppTitle('Jardín Zen con Bong');
-  xb.add(new EscenaJardinZen());
-  xb.init(opciones);
-});
-</script>
+      document.addEventListener('DOMContentLoaded', () => {
+        const opciones = new xb.Options();
+        opciones.enableUI();
+        opciones.setAppTitle('Jardín Zen con Bong');
+        xb.add(new EscenaJardinBong());
+        xb.init(opciones);
+      });
+    </script>
   </body>
-</html>
