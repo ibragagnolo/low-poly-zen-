@@ -145,6 +145,32 @@ class EscenaJardinPrimeraPersona extends xb.Script {
     oscilador.stop(t + 1.6);
   }
 
+  /**
+   * Dispara una ráfaga de pétalos concentrados desde la copa de un árbol específico
+   */
+  lanzarRafagaPetalosDesdeArbol(posicionArbol) {
+    let petalosModificados = 0;
+    const maxPetalosPorRafaga = 15; // Cantidad de pétalos que caen al tocar el árbol
+
+    for (let i = 0; i < this.petalosSakura.length; i++) {
+      const petalo = this.petalosSakura[i];
+      // Si el pétalo ya cayó cerca del suelo o de forma aleatoria, lo relanzamos desde el árbol
+      if (petalo.position.y < 0.4 || Math.random() > 0.6) {
+        petalo.position.set(
+          posicionArbol.x + (Math.random() * 0.4 - 0.2),
+          posicionArbol.y + 0.3 + (Math.random() * 0.3), // Justo en la copa
+          posicionArbol.z + (Math.random() * 0.4 - 0.2)
+        );
+        // Le damos un impulso de caída y oscilación más enérgico
+        petalo.userData.velocidadDescenso = 0.5 + Math.random() * 0.5;
+        petalo.userData.frecuenciaViento = 3.0 + Math.random() * 2.0;
+
+        petalosModificados++;
+        if (petalosModificados >= maxPetalosPorRafaga) break;
+      }
+    }
+  }
+
   init() {
     // 1. ILUMINACIÓN DE DÍA (Sol potente con sombras suaves)
     const luzAmbiente = new THREE.HemisphereLight(0xffffff, 0xbbbbbb, 1.8);
@@ -710,6 +736,9 @@ class EscenaJardinPrimeraPersona extends xb.Script {
     botonViento.onTriggered = () => {
       this.arbolesInteractivos.forEach(arbol => {
         arbol.userData.temporizadorSacudida = 1.6;
+        const posicionMundial = new THREE.Vector3();
+        arbol.userData.canopy.getWorldPosition(posicionMundial);
+        this.lanzarRafagaPetalosDesdeArbol(posicionMundial);
       });
       this.velocidadPetalos = 2.0;
       setTimeout(() => { this.velocidadPetalos = 0.6; }, 3500);
@@ -720,7 +749,7 @@ class EscenaJardinPrimeraPersona extends xb.Script {
 
     // Tip de interacción
     cuadricula.addRow({weight: 0.2}).addText({
-      text: '💡 Tip: Toca los árboles para agitar las flores de cerezo, o golpea el gran cuenco tibetano.',
+      text: '💡 Tip: Toca las hojas de los árboles para hacer caer pétalos o golpea el cuenco tibetano.',
       fontColor: '#ffe082',
       fontSize: 0.028,
     });
@@ -732,11 +761,19 @@ class EscenaJardinPrimeraPersona extends xb.Script {
   onSelectStart(event) {
     const control = event.target;
     
-    // Verificación de clic/interacción con los Cerezos (Funciona tanto en modelos procedurales como cargados desde el GLB)
+    // Verificación de clic/interacción con los Cerezos (Lanza ráfaga de pétalos localizados)
     this.arbolesInteractivos.forEach(arbol => {
       const interseccion = xb.core.user.select(arbol.userData.canopy, control);
       if (interseccion) {
         arbol.userData.temporizadorSacudida = 1.0;
+        
+        // Obtenemos la posición absoluta de la copa de este árbol interactuado
+        const posicionMundial = new THREE.Vector3();
+        arbol.userData.canopy.getWorldPosition(posicionMundial);
+        
+        // Disparamos la ráfaga de pétalos desde su posición
+        this.lanzarRafagaPetalosDesdeArbol(posicionMundial);
+
         this.iniciarAudio();
         this.sonarCampanillaViento();
       }
